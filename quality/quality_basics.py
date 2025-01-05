@@ -7,8 +7,8 @@ class QualityTier(IntEnum):
     Normal    = 0
     Uncommon  = 1
     Rare      = 2
-    Epic      = 3
-    Legendary = 4
+    # Epic      = 3
+    # Legendary = 4
 
 
 def quality_probability(quality_chance : float, input_tier : QualityTier, output_tier : QualityTier) -> float:
