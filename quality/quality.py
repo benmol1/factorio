@@ -18,7 +18,7 @@ def quality_probability(quality_chance : float, input_tier : QualityTier, output
     the resulting product from the tier of the products (`input_tier`) to the `output_tier`.
 
     Args:
-        quality_chance (float): Quality chance (in %).
+        quality_chance (float): Quality chance
         input_tier (QualityTier): Quality tier of the ingredients.
         output_tier (QualityTier): Quality tier of the product.
     
@@ -27,12 +27,11 @@ def quality_probability(quality_chance : float, input_tier : QualityTier, output
     """
     
     # Basic validations
-    assert 0 <= quality_chance <= 100
+    assert 0 <= quality_chance <= 1
     assert 0 <= input_tier  <= (NUM_TIERS-1) and type(input_tier)  == int
     assert 0 <= output_tier <= (NUM_TIERS-1) and type(output_tier) == int
 
     # Some QoL conversions
-    quality_chance /= 100
     i = input_tier
     o = output_tier
 
@@ -110,5 +109,9 @@ def custom_production_matrix(parameters_per_row : List[Tuple[float, float]]) -> 
 
 if __name__ == "__main__":
     np.set_printoptions(suppress=True)
-    print(quality_matrix(10))
+
+    params_BC_em_plant = [(0.2, 1.5), (0.2, 1.5), (0, 1.8)]
+    prod_mat_BC_em_plant = custom_production_matrix(params_BC_em_plant)
+
+    print(prod_mat_BC_em_plant)
 
