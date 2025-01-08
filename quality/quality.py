@@ -3,12 +3,14 @@ import numpy as np
 from enum import IntEnum
 from typing import Union, List, Tuple
 
+NUM_TIERS = 3
+
 class QualityTier(IntEnum):
     Normal    = 0
     Uncommon  = 1
     Rare      = 2
-    Epic      = 3
-    Legendary = 4
+    # Epic      = 3
+    # Legendary = 4
 
 
 def quality_probability(quality_chance : float, input_tier : QualityTier, output_tier : QualityTier) -> float:
@@ -26,8 +28,8 @@ def quality_probability(quality_chance : float, input_tier : QualityTier, output
     
     # Basic validations
     assert 0 <= quality_chance <= 100
-    assert 0 <= input_tier  <= 4 and type(input_tier)  == int
-    assert 0 <= output_tier <= 4 and type(output_tier) == int
+    assert 0 <= input_tier  <= (NUM_TIERS-1) and type(input_tier)  == int
+    assert 0 <= output_tier <= (NUM_TIERS-1) and type(output_tier) == int
 
     # Some QoL conversions
     quality_chance /= 100
@@ -38,17 +40,17 @@ def quality_probability(quality_chance : float, input_tier : QualityTier, output
     if input_tier > output_tier:
         return 0
     
-    # If the item is already legendary, it will remain legendary
-    if input_tier == QualityTier.Legendary:
+    # If the item is already rare, it will remain rare
+    if input_tier == QualityTier.Rare:
         return 1
     
     # Probability of item staying in the same tier
     if input_tier == output_tier:
         return 1 - quality_chance
     
-    # Probability of item going straight to legendary
-    if output_tier == QualityTier.Legendary:
-        return quality_chance / (10 ** (3 - i))
+    # Probability of item going straight to rare
+    if output_tier == QualityTier.Rare:
+        return quality_chance / (10 ** ((NUM_TIERS-2) - i))
     
     # else
     return (quality_chance * 9/10) / (10 ** (o - i - 1))
@@ -62,14 +64,13 @@ def quality_matrix(quality_chance : float) -> np.ndarray:
         quality_chance (float): Quality chance (in %).
 
     Returns:
-        np.ndarray: 5x5 matrix. The columns represent the input quality tier and go from legendary to normal, from left to right.
-            The lines represent the output quality tier and go from normal to legendary, from top to bottom.
+        np.ndarray: nxn matrix. The input quality is split by row; output quality by column
     """
 
-    res = np.zeros((5,5))
+    res = np.zeros((NUM_TIERS,NUM_TIERS))
     
-    for row in range(5):
-        for column in range(5):
+    for row in range(NUM_TIERS):
+        for column in range(NUM_TIERS):
             res[row][column] = quality_probability(quality_chance, row, column)
     
     return res
@@ -87,27 +88,27 @@ def custom_production_matrix(parameters_per_row : List[Tuple[float, float]]) -> 
             quality chance (%) and production ratio for the respective row.
 
     Returns:
-        np.ndarray: 5x5 production matrix.
+        np.ndarray: nxn production matrix.
     """
 
     # Basic validations
-    assert len(parameters_per_row) == 5
+    assert len(parameters_per_row) == NUM_TIERS
     assert type(parameters_per_row) == list
     for pair in parameters_per_row:
         assert type(pair) == tuple
         assert len(pair) == 2
 
-    res = np.zeros((5,5))
+    res = np.zeros((NUM_TIERS,NUM_TIERS))
     
-    for row in range(5):
+    for row in range(NUM_TIERS):
         quality_chance, production_ratio = parameters_per_row[row]
 
-        for column in range(5):
+        for column in range(NUM_TIERS):
             res[row][column] = quality_probability(quality_chance, row, column) * production_ratio
     
     return res
 
 if __name__ == "__main__":
     np.set_printoptions(suppress=True)
-    # print(quality_matrix(10))
-    # print(basic_production_matrix(10, 19/220))
+    print(quality_matrix(10))
+
