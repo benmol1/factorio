@@ -7,6 +7,8 @@ import pandas
 
 from quality import custom_production_matrix
 
+NUM_TIERS = 3
+
 def custom_transition_matrix(recycler_matrix : np.ndarray, assembler_matrix : np.ndarray) -> np.ndarray:
     """Creates a transition matrix based on the 
     provided recycler and assembler production matrices.
@@ -19,22 +21,22 @@ def custom_transition_matrix(recycler_matrix : np.ndarray, assembler_matrix : np
         np.ndarray: Transition matrix with the recycler production matrix 
         in the lower left and assembler production matrix in the upper right.
     """
-    res = np.zeros((10,10))
+    res = np.zeros((NUM_TIERS*2,NUM_TIERS*2))
 
-    for i in range(5):
-        for j in range(5):
-            res[i + 5][j] = recycler_matrix[i, j]
-            res[i][j + 5] = assembler_matrix[i, j]
+    for i in range(NUM_TIERS):
+        for j in range(NUM_TIERS):
+            res[i + NUM_TIERS][j] = recycler_matrix[i, j]
+            res[i][j + NUM_TIERS] = assembler_matrix[i, j]
 
     return res
 
 def get_recycler_parameters(
-        quality_to_keep : int = 5, # Don't recycle legendary items (default)
+        quality_to_keep : int = NUM_TIERS, # Don't recycle rare items (default)
         recipe_ratio : float = 1, # Ratio of items to ingredients of the recipe
-        qual_module_bonus : float = 6.2) -> List[Tuple[float, float]]:
+        qual_module_bonus : float = 0.04) -> List[Tuple[float, float]]:
     
     recycling_rows = quality_to_keep - 1
-    saving_rows = 5 - recycling_rows
+    saving_rows = NUM_TIERS - recycling_rows
 
     # Recycler stats
     production_ratio = 0.25 / recipe_ratio
@@ -44,22 +46,22 @@ def get_recycler_parameters(
 
 def get_assembler_parameters(
         assembler_modules_config : Union[Tuple[float, float], List[Tuple[float, float]]], # Modules configuration of assemblers for every quality level
-        quality_to_keep : int = 5, # Don't assemble legendary ingredients (default)
+        quality_to_keep : int = NUM_TIERS, # Don't assemble legendary ingredients (default)
         base_prod_bonus : float = 0, # base productivity of assembler + productivity technologies
         recipe_ratio : float = 1, # Ratio of items to ingredients of the recipe
-        prod_module_bonus : float = 25,
-        qual_module_bonus : float = 6.2) -> List[Tuple[float, float]]:
+        prod_module_bonus : float = 0.06,
+        qual_module_bonus : float = 0.04) -> List[Tuple[float, float]]:
     
     production_rows = quality_to_keep - 1
 
-    res = [(0, 0)] * 5
+    res = [(0, 0)] * NUM_TIERS
 
     for i, (prod_count, qual_count) in enumerate(assembler_modules_config):
         if i == production_rows:
             break
 
         # Assembler stats
-        production_ratio = (100 + min(base_prod_bonus + prod_count * prod_module_bonus, 300)) * recipe_ratio / 100
+        production_ratio = (1 + min(base_prod_bonus + prod_count * prod_module_bonus, 3)) * recipe_ratio
         quality_chance = qual_count * qual_module_bonus
 
         res[i] = (quality_chance, production_ratio)
@@ -69,12 +71,12 @@ def get_assembler_parameters(
 def recycler_assembler_loop(
         input_vector : Union[np.array, float],
         assembler_modules_config : Union[Tuple[float, float], List[Tuple[float, float]]], # Modules configuration of assemblers for every quality level
-        items_quality_to_keep : Union[int, None] = 5, # Don't recycle legendary items (default)
-        ingredients_quality_to_keep : Union[int, None] = 5, # Don't assemble legendary ingredients (default)
+        items_quality_to_keep : Union[int, None] = NUM_TIERS, # Don't recycle rare items (default)
+        ingredients_quality_to_keep : Union[int, None] = NUM_TIERS, # Don't assemble rare ingredients (default)
         base_prod_bonus : float = 0, # base productivity of assembler + productivity technologies
         recipe_ratio : float = 1, # Ratio of items to ingredients of the recipe
-        prod_module_bonus : float = 25,
-        qual_module_bonus : float = 6.2) -> np.array:
+        prod_module_bonus : float = 0.06,
+        qual_module_bonus : float = 0.04) -> np.array:
     """Returns a vector with values for each quality level that mean different things, depending on whether that quality is kept or recycled:
         - If the quality is kept: the value is the production rate of ingredients/items of that quality level.
         - If the quality is recycled: the value is the internal flow rate of ingredients/items of that quality level in the system.
@@ -96,17 +98,17 @@ def recycler_assembler_loop(
     """
     
     if type(assembler_modules_config) == tuple:
-        assembler_modules_config = [assembler_modules_config] * 5
+        assembler_modules_config = [assembler_modules_config] * NUM_TIERS
 
     # Parameters for the production matrices
     recycler_parameters  = get_recycler_parameters(
-        items_quality_to_keep if items_quality_to_keep != None else 6,
+        items_quality_to_keep if items_quality_to_keep != None else NUM_TIERS+1,
         recipe_ratio,
         qual_module_bonus
     )
     assembler_parameters = get_assembler_parameters(
         assembler_modules_config,
-        ingredients_quality_to_keep if ingredients_quality_to_keep != None else 6,
+        ingredients_quality_to_keep if ingredients_quality_to_keep != None else NUM_TIERS+1,
         base_prod_bonus,
         recipe_ratio,
         prod_module_bonus,
@@ -114,7 +116,7 @@ def recycler_assembler_loop(
     )
 
     if type(input_vector) in (float, int):
-        input_vector = np.array([input_vector] + [0] * 9)
+        input_vector = np.array([input_vector] + [0] * (NUM_TIERS*2 - 1))
     
     result_flows = [input_vector]
     while True:
@@ -132,12 +134,12 @@ def recycler_assembler_loop(
     return sum(result_flows)
 
 def factorio_wiki_repro():
-    print(custom_production_matrix([(25, 0.25)] * 4 + [(0, 0)]))
-    print(custom_production_matrix([(25, 1.5)] * 5))
+    print(custom_production_matrix([(0.25, 0.25)] * (NUM_TIERS-1) + [(0, 0)]))
+    print(custom_production_matrix([(0.25, 1.5)] * NUM_TIERS))
 
     print(custom_transition_matrix(
-        custom_production_matrix([(25, 0.25)] * 4 + [(0, 0)]), 
-        custom_production_matrix([(25, 1.5)] * 5)
+        custom_production_matrix([(0.25, 0.25)] * (NUM_TIERS-1) + [(0, 0)]),
+        custom_production_matrix([(0.25, 1.5)] * NUM_TIERS)
     ))
     # https://wiki.factorio.com/Quality
 
@@ -264,11 +266,11 @@ def recycler_assembler_efficiency(
     assert module_slots >= 0 and base_productivity >= 0
 
     if system_output == SystemOutput.ITEMS:
-        keep_items = 5
+        keep_items = NUM_TIERS
         keep_ingredients = None
     else: # system_output == SystemOutput.INGREDIENTS:
         keep_items = None
-        keep_ingredients = 5
+        keep_ingredients = NUM_TIERS
     
     # What is the output of the system: ingredients or items?
     result_index = 4 if system_output == SystemOutput.INGREDIENTS else 9
@@ -288,7 +290,7 @@ def recycler_assembler_efficiency(
         all_configs = get_all_configs(module_slots)
 
         for config in tqdm(list(all_configs)):
-            if config[4] != (module_slots, 0):
+            if config[NUM_TIERS-1] != (module_slots, 0):
                 # Makes no sense to put quality modules on legendary item crafter
                 continue
             
@@ -306,8 +308,8 @@ def efficiency_table():
         "Electric furnace/Centrifuge" : (2, 0),
         "Chemical Plant"              : (3, 0),
         "Assembling machine"          : (4, 0),
-        "Foundry/Biochamber"          : (4, 50),
-        "Electromagnetic plant"       : (5, 50),
+        "Foundry/Biochamber"          : (4, 0.5),
+        "Electromagnetic plant"       : (5, 0.5),
         "Cryogenic plant"             : (8, 0),
     }
     OUTPUTS = (SystemOutput.ITEMS, SystemOutput.INGREDIENTS)
