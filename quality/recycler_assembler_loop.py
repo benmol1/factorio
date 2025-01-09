@@ -8,14 +8,16 @@ import pandas
 from quality import create_production_matrix
 
 NUM_TIERS = 3
+BEST_PROD_MODULE = 0.06
+BEST_QUAL_MODULE = 0.04
 
-def create_transition_matrix(recycler_matrix : np.ndarray, assembler_matrix : np.ndarray) -> np.ndarray:
+def create_transition_matrix(assembler_matrix : np.ndarray, recycler_matrix : np.ndarray) -> np.ndarray:
     """Creates a transition matrix based on the 
     provided recycler and assembler production matrices.
 
     Args:
-        recycler_matrix (np.ndarray): Recycler production matrix.
         assembler_matrix (np.ndarray): Assembler production matrix.
+        recycler_matrix (np.ndarray): Recycler production matrix.
 
     Returns:
         np.ndarray: Transition matrix with the recycler production matrix 
@@ -27,6 +29,31 @@ def create_transition_matrix(recycler_matrix : np.ndarray, assembler_matrix : np
         for j in range(NUM_TIERS):
             res[i + NUM_TIERS][j] = recycler_matrix[i, j]
             res[i][j + NUM_TIERS] = assembler_matrix[i, j]
+
+    return res
+
+
+def get_assembler_parameters(
+        assembler_modules_config: Union[Tuple[float, float], List[Tuple[float, float]]],
+        # Modules configuration of assemblers for every quality level
+        quality_to_keep: int = NUM_TIERS,  # Don't assemble legendary ingredients (default)
+        base_prod_bonus: float = 0,  # base productivity of assembler + productivity technologies
+        recipe_ratio: float = 1,  # Ratio of items to ingredients of the recipe
+        prod_module_bonus: float = BEST_PROD_MODULE,
+        qual_module_bonus: float = BEST_QUAL_MODULE) -> List[Tuple[float, float]]:
+    production_rows = quality_to_keep - 1
+
+    res = [(0, 0)] * NUM_TIERS
+
+    for i, (nP, nQ) in enumerate(assembler_modules_config):
+        if i == production_rows:
+            break
+
+        # Assembler stats
+        production_ratio = min(base_prod_bonus + nP * prod_module_bonus, 4) * recipe_ratio
+        quality_chance = nQ * qual_module_bonus
+
+        res[i] = (quality_chance, production_ratio)
 
     return res
 
@@ -44,39 +71,16 @@ def get_recycler_parameters(
 
     return [(quality_chance, production_ratio)] * recycling_rows + [(0, 0)] * saving_rows
 
-def get_assembler_parameters(
-        assembler_modules_config : Union[Tuple[float, float], List[Tuple[float, float]]], # Modules configuration of assemblers for every quality level
-        quality_to_keep : int = NUM_TIERS, # Don't assemble legendary ingredients (default)
-        base_prod_bonus : float = 0, # base productivity of assembler + productivity technologies
-        recipe_ratio : float = 1, # Ratio of items to ingredients of the recipe
-        prod_module_bonus : float = 0.06,
-        qual_module_bonus : float = 0.04) -> List[Tuple[float, float]]:
-    
-    production_rows = quality_to_keep - 1
 
-    res = [(0, 0)] * NUM_TIERS
-
-    for i, (nP, nQ) in enumerate(assembler_modules_config):
-        if i == production_rows:
-            break
-
-        # Assembler stats
-        production_ratio = min(base_prod_bonus + nP * prod_module_bonus, 4) * recipe_ratio
-        quality_chance = nQ * qual_module_bonus
-
-        res[i] = (quality_chance, production_ratio)
-
-    return res
-
-def recycler_assembler_loop(
+def assembler_recycler_loop(
         input_vector : Union[np.array, float],
         assembler_modules_config : Union[Tuple[float, float], List[Tuple[float, float]]], # Modules configuration of assemblers for every quality level
         items_quality_to_keep : Union[int, None] = NUM_TIERS, # Don't recycle rare items (default)
         ingredients_quality_to_keep : Union[int, None] = NUM_TIERS, # Don't assemble rare ingredients (default)
         base_prod_bonus : float = 0, # base productivity of assembler + productivity technologies
         recipe_ratio : float = 1, # Ratio of items to ingredients of the recipe
-        prod_module_bonus : float = 0.06,
-        qual_module_bonus : float = 0.04) -> np.array:
+        prod_module_bonus : float = BEST_PROD_MODULE,
+        qual_module_bonus : float = BEST_QUAL_MODULE) -> np.array:
     """Returns a vector with values for each quality level that mean different things, depending on whether that quality is kept or recycled:
         - If the quality is kept: the value is the production rate of ingredients/items of that quality level.
         - If the quality is recycled: the value is the internal flow rate of ingredients/items of that quality level in the system.
@@ -101,11 +105,6 @@ def recycler_assembler_loop(
         assembler_modules_config = [assembler_modules_config] * NUM_TIERS
 
     # Parameters for the production matrices
-    recycler_parameters  = get_recycler_parameters(
-        items_quality_to_keep if items_quality_to_keep != None else NUM_TIERS+1,
-        recipe_ratio,
-        qual_module_bonus
-    )
     assembler_parameters = get_assembler_parameters(
         assembler_modules_config,
         ingredients_quality_to_keep if ingredients_quality_to_keep != None else NUM_TIERS+1,
@@ -114,11 +113,15 @@ def recycler_assembler_loop(
         prod_module_bonus,
         qual_module_bonus
     )
-
+    recycler_parameters  = get_recycler_parameters(
+        items_quality_to_keep if items_quality_to_keep != None else NUM_TIERS+1,
+        recipe_ratio,
+        qual_module_bonus
+    )
     # Create the transition matrix
     transition_matrix = create_transition_matrix(
-        create_production_matrix(recycler_parameters),
-        create_production_matrix(assembler_parameters)
+        assembler_matrix=create_production_matrix(assembler_parameters),
+        recycler_matrix=create_production_matrix(recycler_parameters)
     )
 
     # Handle the case where input_vector has just been given as a single scalar value
@@ -135,105 +138,8 @@ def recycler_assembler_loop(
 
     return sum(result_flows)
 
-def factorio_wiki_repro():
-    print(create_production_matrix([(0.25, 0.25)] * (NUM_TIERS - 1) + [(0, 0)]))
-    print(create_production_matrix([(0.25, 1.5)] * NUM_TIERS))
-
-    print(create_transition_matrix(
-        create_production_matrix([(0.25, 0.25)] * (NUM_TIERS - 1) + [(0, 0)]),
-        create_production_matrix([(0.25, 1.5)] * NUM_TIERS)
-    ))
-    # https://wiki.factorio.com/Quality
-
-def correlation_quality_only_max_items():
-    print("(D) Quality only, max items")
-    res = recycler_assembler_loop(100, (0, 4), ingredients_quality_to_keep = None)
-    print(res)
-    print(f"{res[9]}%")
-    # https://docs.google.com/spreadsheets/d/1fGQry4MZ6S95vWrt59TQoNRy1yJMx-er202ai0r4R-w/edit?gid=0#gid=0&range=E14
-
-def correlation_prod_only_max_items():
-    print("(E) Prod only, max items")
-    res = recycler_assembler_loop(100, (4, 0), ingredients_quality_to_keep = None)
-    print(res)
-    print(f"{res[9]}%")
-    # https://docs.google.com/spreadsheets/d/1fGQry4MZ6S95vWrt59TQoNRy1yJMx-er202ai0r4R-w/edit?gid=0#gid=0&range=F14
-
 def get_config_string(config : List[Tuple[int, int]]):
     return [f"{p}P{q}Q" for (p, q) in config]
-
-def correlation_optimal_modules_max_items():
-    print("(F) Optimal modules, max items")
-
-    best_config = None
-    best_efficiency = 0
-
-    all_configs = get_all_configs(4)
-
-    for config in tqdm(list(all_configs)):
-        if config[4] != (4, 0):
-            # Makes no sense to put quality modules on legendary item crafter
-            continue
-
-        efficiency = float(recycler_assembler_loop(100, config, ingredients_quality_to_keep = None)[9])
-
-        if best_efficiency < efficiency:
-            best_config = config
-            best_efficiency = efficiency
-    
-    print(f"Optimal config: {get_config_string(best_config)}")
-    print(f"Optimal efficiency: {best_efficiency}%")
-    # https://docs.google.com/spreadsheets/d/1fGQry4MZ6S95vWrt59TQoNRy1yJMx-er202ai0r4R-w/edit?gid=0#gid=0&range=G14
-
-def correlation_quality_only_max_ingredients():
-    print("(G) Quality only, max ingredients")
-    res = recycler_assembler_loop(100, (0, 4), items_quality_to_keep = None)
-    print(res)
-    print(f"{res[4]}%")
-    # https://docs.google.com/spreadsheets/d/1fGQry4MZ6S95vWrt59TQoNRy1yJMx-er202ai0r4R-w/edit?gid=0#gid=0&range=H14
-
-def correlation_prod_only_max_ingredients():
-    print("(H) Prod only, max ingredients")
-    res = recycler_assembler_loop(100, (4, 0), items_quality_to_keep = None)
-    print(res)
-    print(f"{res[4]}%")
-    # https://docs.google.com/spreadsheets/d/1fGQry4MZ6S95vWrt59TQoNRy1yJMx-er202ai0r4R-w/edit?gid=0#gid=0&range=I14
-
-def correlation_optimal_modules_max_ingredients():
-    print("(I) Optimal modules, max ingredients")
-
-    best_config = None
-    best_efficiency = 0
-
-    all_configs = get_all_configs(4)
-
-    for config in tqdm(list(all_configs)):
-        if config[4] != (4, 0):
-            # Makes no sense to put quality modules on legendary item crafter
-            continue
-
-        efficiency = float(recycler_assembler_loop(100, list(config), items_quality_to_keep = None)[4])
-
-        if best_efficiency < efficiency:
-            best_config = config
-            best_efficiency = efficiency
-    
-    print(f"Optimal config: {get_config_string(best_config)}")
-    print(f"Optimal efficiency: {best_efficiency}%")
-    # https://docs.google.com/spreadsheets/d/1fGQry4MZ6S95vWrt59TQoNRy1yJMx-er202ai0r4R-w/edit?gid=0#gid=0&range=J14
-
-def print_regulations():
-    correlation_quality_only_max_items()
-    print("=" * 100)
-    correlation_prod_only_max_items()
-    print("=" * 100)
-    correlation_optimal_modules_max_items()
-    print("=" * 100)
-    correlation_quality_only_max_ingredients()
-    print("=" * 100)
-    correlation_prod_only_max_ingredients()
-    print("=" * 100)
-    correlation_optimal_modules_max_ingredients()
 
 class SystemOutput(Enum):
     INGREDIENTS = 0
@@ -252,7 +158,7 @@ def get_all_configs(module_slots : int):
         q = module_slots - p
         module_variations_for_assembler.append((p, q))
     
-    res = list(itertools.product(* [module_variations_for_assembler] * 5))
+    res = list(itertools.product(* [module_variations_for_assembler] * NUM_TIERS))
 
     for i in range(len(res)):
         res[i] = list(res[i])
@@ -263,7 +169,9 @@ def recycler_assembler_efficiency(
         module_slots : int,
         base_productivity : float,
         system_output : SystemOutput,
-        module_strategy : ModuleStrategy) -> float:
+        module_strategy : ModuleStrategy,
+        prod_mod_bonus : float = 0.06,
+        qual_mod_bonus : float = 0.04) -> float:
     "Returns the efficiency of the setup with the given parameters (%)."
     assert module_slots >= 0 and base_productivity >= 0
 
@@ -275,7 +183,7 @@ def recycler_assembler_efficiency(
         keep_ingredients = NUM_TIERS
     
     # What is the output of the system: ingredients or items?
-    result_index = 4 if system_output == SystemOutput.INGREDIENTS else 9
+    result_index = (NUM_TIERS - 1) if system_output == SystemOutput.INGREDIENTS else (NUM_TIERS * 2 - 1)
     
     if module_strategy != ModuleStrategy.OPTIMIZE:
         if module_strategy == ModuleStrategy.FULL_PRODUCTIVITY:
@@ -283,7 +191,8 @@ def recycler_assembler_efficiency(
         else:
             config = (0, module_slots)
         
-        output = recycler_assembler_loop(100, config, keep_items, keep_ingredients, base_productivity)
+        output = assembler_recycler_loop(100, config, keep_items, keep_ingredients, base_productivity,
+                                         prod_module_bonus=prod_mod_bonus, qual_module_bonus=qual_mod_bonus)
         return output[result_index]
     else:
         best_config = None
@@ -295,13 +204,15 @@ def recycler_assembler_efficiency(
             if config[NUM_TIERS-1] != (module_slots, 0):
                 # Makes no sense to put quality modules on legendary item crafter
                 continue
-            
-            output = recycler_assembler_loop(100, list(config), keep_items, keep_ingredients, base_productivity)
+
+            output = assembler_recycler_loop(100, config, keep_items, keep_ingredients, base_productivity,
+                                             prod_module_bonus=prod_mod_bonus, qual_module_bonus=qual_mod_bonus)
             efficiency = float(output[result_index])
 
             if best_efficiency < efficiency:
                 best_config = config
                 best_efficiency = efficiency
+                print(config, ": %.2f" % efficiency)
         
         return best_efficiency
 
@@ -339,97 +250,61 @@ def efficiency_table():
     
     print(pandas.DataFrame(table).T.to_string())
 
-def simple_recycler_assembler_loop():
-    input_vector = np.array([1] + [0] * (NUM_TIERS*2 -1))
 
-    transition_matrix = create_transition_matrix( # Transition matrix from the previous subchapter
-        create_production_matrix([(0.2, 0.25)] * (NUM_TIERS - 1) + [(0, 0)]),
-        create_production_matrix([(0.2, 1.5)] * NUM_TIERS)
-    )
-    
-    result_flows = [input_vector]
-    ii = 0
-    while True:
-        ii += 1
-        result_flows_this_iteration = result_flows[-1] @ transition_matrix
 
-        print(ii + "\t" + result_flows_this_iteration)
-
-        result_flows.append(result_flows_this_iteration)
-
-        if sum(abs(result_flows[-2] - result_flows[-1])) < 1E-3:
-            # There's nothing left in the system
-            break
-
-    print(" & ".join([str(float(round(i, 5))) for i in sum(result_flows)]))
-
-if __name__ == "__main__":
-
-    # TODO: experiment with a "keep" mask which determines which ingredients and products are kept
-
-    np.set_printoptions(precision=2, suppress=True, linewidth = 1000)
+def verbose_AR_loop(qual_assembler, prod_assembler, qual_recycler, prod_recycler=0.25):
 
     # Create and print the transition matrix
-    recycler_matrix = create_production_matrix([(0.16, 0.25)] * (NUM_TIERS - 1) + [(0, 0)])
-    em_plant_matrix = create_production_matrix([(0.20, 2.4)] * 2 + [(0, 2.4)])
+    recycler_matrix = create_production_matrix([(qual_recycler, prod_recycler)] * (NUM_TIERS - 1) + [(0, 0)])
+    em_plant_matrix = create_production_matrix([(qual_assembler, prod_assembler)] * (NUM_TIERS - 1) + [(0, prod_assembler)])
 
     transition_matrix = create_transition_matrix(
-        recycler_matrix,
-        em_plant_matrix
+        assembler_matrix=em_plant_matrix,
+        recycler_matrix=recycler_matrix
     )
-    print("## Transition matrix:\n", transition_matrix, "\n")
 
+    print("## Transition matrix:\n", transition_matrix, "\n")
     # Create and print the input vector
     input_vector = np.array([100] + [0] * (NUM_TIERS * 2 - 1))
     ii = 0
-
     print("## Iterations:")
     print(ii, "\t", input_vector)
-
     result_flows = [input_vector]
-
     # Apply the transition matrix iteratively, until the resulting flows become very small
     while True:
         ii += 1
-        result_flows_this_iteration = result_flows[-1] @ transition_matrix
 
+        # Compute & print the flows for this iteration
+        result_flows_this_iteration = result_flows[-1] @ transition_matrix
         print(ii, "\t", result_flows_this_iteration)
 
+        # append this iteration to the overall results array
         result_flows.append(result_flows_this_iteration)
 
         if sum(abs(result_flows[-2] - result_flows[-1])) < 1E-2:
             # There's nothing left in the system
-            print("\n")
             break
-
     # Print the sum of all flows.
     # In the simple case, the output is the number of highest-tier products resulting from the input vector
     print(sum(result_flows))
 
-    # Compact AR loop, replicating the manually-generated results above
-    output_flows = recycler_assembler_loop(
-        input_vector= input_vector,
-        assembler_modules_config=[(0,5), (0,5), (0,0)],  # Modules configuration of assemblers for every quality level (nP, nQ)
-        items_quality_to_keep=NUM_TIERS,  # Don't recycle rare items (default)
-        ingredients_quality_to_keep = None,  # Don't keep any ingredients
-        base_prod_bonus=2.4,  # base productivity of assembler + productivity technologies
-        recipe_ratio=1,  # Ratio of items to ingredients of the recipe
-        prod_module_bonus=0.06,
-        qual_module_bonus=0.04
-    )
+
+if __name__ == "__main__":
+
+    np.set_printoptions(precision=2, suppress=True, linewidth = 1000)
+
+    # Compact AR loop for an EM plants at our current tech level, with the classic [Q, Q, P] strategy
+    output_flows = assembler_recycler_loop(input_vector=100, assembler_modules_config=[(0, 5), (0, 5), (5, 0)],
+                                           items_quality_to_keep=NUM_TIERS, ingredients_quality_to_keep=None,
+                                           base_prod_bonus=2.4, recipe_ratio=1,
+                                           prod_module_bonus=0.1, qual_module_bonus=0.04)
     print(output_flows)
 
-    # Same again, but this sensibly time putting productivity modules in the Tier 3 assembler + unlocking Mk3 ProdMod
-    output_flows = recycler_assembler_loop(
-        input_vector= input_vector,
-        assembler_modules_config=[(0,5), (0,5), (5,0)],  # Modules configuration of assemblers for every quality level
-        items_quality_to_keep=NUM_TIERS,  # Don't recycle rare items (default)
-        ingredients_quality_to_keep = None,  # Don't keep any ingredients
-        base_prod_bonus=2.4,  # base productivity of assembler + productivity technologies
-        recipe_ratio=1,  # Ratio of items to ingredients of the recipe
-        prod_module_bonus=0.1,
-        qual_module_bonus=0.04
-    )
-    print(output_flows)
+    slots = 5
+    base_prod = 2.4
+    output = SystemOutput.ITEMS
+    strategy = ModuleStrategy.OPTIMIZE
 
+    eff = recycler_assembler_efficiency(slots, base_prod, output, strategy,
+                                        prod_mod_bonus=0.1, qual_mod_bonus=0.04)
 
