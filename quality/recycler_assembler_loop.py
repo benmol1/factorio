@@ -5,11 +5,11 @@ from tqdm import tqdm
 from enum import Enum
 import pandas
 
-from quality import custom_production_matrix
+from quality import create_production_matrix
 
 NUM_TIERS = 3
 
-def custom_transition_matrix(recycler_matrix : np.ndarray, assembler_matrix : np.ndarray) -> np.ndarray:
+def create_transition_matrix(recycler_matrix : np.ndarray, assembler_matrix : np.ndarray) -> np.ndarray:
     """Creates a transition matrix based on the 
     provided recycler and assembler production matrices.
 
@@ -121,9 +121,9 @@ def recycler_assembler_loop(
     result_flows = [input_vector]
     while True:
         result_flows.append(
-            result_flows[-1] @ custom_transition_matrix(
-                custom_production_matrix(recycler_parameters), 
-                custom_production_matrix(assembler_parameters)
+            result_flows[-1] @ create_transition_matrix(
+                create_production_matrix(recycler_parameters),
+                create_production_matrix(assembler_parameters)
             )
         )
 
@@ -134,12 +134,12 @@ def recycler_assembler_loop(
     return sum(result_flows)
 
 def factorio_wiki_repro():
-    print(custom_production_matrix([(0.25, 0.25)] * (NUM_TIERS-1) + [(0, 0)]))
-    print(custom_production_matrix([(0.25, 1.5)] * NUM_TIERS))
+    print(create_production_matrix([(0.25, 0.25)] * (NUM_TIERS - 1) + [(0, 0)]))
+    print(create_production_matrix([(0.25, 1.5)] * NUM_TIERS))
 
-    print(custom_transition_matrix(
-        custom_production_matrix([(0.25, 0.25)] * (NUM_TIERS-1) + [(0, 0)]),
-        custom_production_matrix([(0.25, 1.5)] * NUM_TIERS)
+    print(create_transition_matrix(
+        create_production_matrix([(0.25, 0.25)] * (NUM_TIERS - 1) + [(0, 0)]),
+        create_production_matrix([(0.25, 1.5)] * NUM_TIERS)
     ))
     # https://wiki.factorio.com/Quality
 
@@ -338,18 +338,18 @@ def efficiency_table():
     print(pandas.DataFrame(table).T.to_string())
 
 def simple_recycler_assembler_loop():
-    input_vector = np.array([1] + [0] * 9)
+    input_vector = np.array([1] + [0] * (NUM_TIERS*2 -1))
 
-    transition_matrix = custom_transition_matrix( # Transition matrix from the previous subchapter
-        custom_production_matrix([(25, 0.25)] * 4 + [(0, 0)]),
-        custom_production_matrix([(25, 1.5)] * 5)
+    transition_matrix = create_transition_matrix( # Transition matrix from the previous subchapter
+        create_production_matrix([(0.2, 0.25)] * (NUM_TIERS - 1) + [(0, 0)]),
+        create_production_matrix([(0.2, 1.5)] * NUM_TIERS)
     )
     
     result_flows = [input_vector]
     while True:
         result_flows.append(result_flows[-1] @ transition_matrix)
 
-        if sum(abs(result_flows[-2] - result_flows[-1])) < 1E-10:
+        if sum(abs(result_flows[-2] - result_flows[-1])) < 1E-5:
             # There's nothing left in the system
             break
 
@@ -358,4 +358,31 @@ def simple_recycler_assembler_loop():
 
 if __name__ == "__main__":
     np.set_printoptions(suppress=True, linewidth = 1000)
-    correlation_optimal_modules_max_items()
+
+    recycler_matrix = create_production_matrix([(0.16, 0.25)] * (NUM_TIERS - 1) + [(0, 0)])
+    em_plant_matrix = create_production_matrix([(0.20, 2.4)] * 2 + [(0, 2.4)])
+
+    transition_matrix = create_transition_matrix(
+        recycler_matrix,
+        em_plant_matrix
+    )
+
+    print(transition_matrix)
+
+    input_vector = np.array([100] + [0] * (NUM_TIERS * 2 - 1))
+
+    result_flows = [input_vector]
+    while True:
+        result_flows.append(result_flows[-1] @ transition_matrix)
+
+        if sum(abs(result_flows[-2] - result_flows[-1])) < 1E-5:
+            # There's nothing left in the system
+            break
+
+    print(sum(result_flows))
+    print(" & ".join([str(float(round(i, 2))) for i in sum(result_flows)]))
+
+
+
+
+

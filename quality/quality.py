@@ -79,7 +79,7 @@ def basic_production_matrix(quality_chance : float, production_ratio : float = 1
     "Returns the production matrix for the corresponding `quality_chance` and `production_ratio`."
     return quality_matrix(quality_chance) * production_ratio
 
-def custom_production_matrix(parameters_per_row : List[Tuple[float, float]]) -> np.ndarray:
+def create_production_matrix(parameters_per_row : List[Tuple[float, float]]) -> np.ndarray:
     """Returns a production matrix where every row has a specific quality chance and prodution ratio.
 
     Args:
@@ -111,7 +111,7 @@ if __name__ == "__main__":
     np.set_printoptions(suppress=True)
 
     params_BC_em_plant = [(0.2, 1.5), (0.2, 1.5), (0, 1.8)]
-    prod_mat_BC_em_plant = custom_production_matrix(params_BC_em_plant)
+    prod_mat_BC_em_plant = create_production_matrix(params_BC_em_plant)
 
     print(prod_mat_BC_em_plant)
 
