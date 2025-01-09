@@ -362,8 +362,12 @@ def simple_recycler_assembler_loop():
     print(" & ".join([str(float(round(i, 5))) for i in sum(result_flows)]))
 
 if __name__ == "__main__":
+
+    # TODO: experiment with a "keep" mask which determines which ingredients and products are kept
+
     np.set_printoptions(precision=2, suppress=True, linewidth = 1000)
 
+    # Create and print the transition matrix
     recycler_matrix = create_production_matrix([(0.16, 0.25)] * (NUM_TIERS - 1) + [(0, 0)])
     em_plant_matrix = create_production_matrix([(0.20, 2.4)] * 2 + [(0, 2.4)])
 
@@ -371,18 +375,18 @@ if __name__ == "__main__":
         recycler_matrix,
         em_plant_matrix
     )
-
     print("## Transition matrix:\n", transition_matrix, "\n")
 
+    # Create and print the input vector
     input_vector = np.array([100] + [0] * (NUM_TIERS * 2 - 1))
-
-    result_flows = [input_vector]
     ii = 0
 
     print("## Iterations:")
-
     print(ii, "\t", input_vector)
 
+    result_flows = [input_vector]
+
+    # Apply the transition matrix iteratively, until the resulting flows become very small
     while True:
         ii += 1
         result_flows_this_iteration = result_flows[-1] @ transition_matrix
@@ -396,6 +400,8 @@ if __name__ == "__main__":
             print("\n")
             break
 
+    # Print the sum of all flows.
+    # In the simple case, the output is the number of highest-tier products resulting from the input vector
     print(sum(result_flows))
 
 
