@@ -1,7 +1,7 @@
 import numpy as np
 from typing import Union, List, Tuple
 import itertools
-from tqdm import tqdm
+# from tqdm import tqdm
 from enum import Enum
 import pandas
 
@@ -346,18 +346,23 @@ def simple_recycler_assembler_loop():
     )
     
     result_flows = [input_vector]
+    ii = 0
     while True:
-        result_flows.append(result_flows[-1] @ transition_matrix)
+        ii += 1
+        result_flows_this_iteration = result_flows[-1] @ transition_matrix
 
-        if sum(abs(result_flows[-2] - result_flows[-1])) < 1E-5:
+        print(ii + "\t" + result_flows_this_iteration)
+
+        result_flows.append(result_flows_this_iteration)
+
+        if sum(abs(result_flows[-2] - result_flows[-1])) < 1E-3:
             # There's nothing left in the system
             break
 
-    print(sum(result_flows))
     print(" & ".join([str(float(round(i, 5))) for i in sum(result_flows)]))
 
 if __name__ == "__main__":
-    np.set_printoptions(suppress=True, linewidth = 1000)
+    np.set_printoptions(precision=2, suppress=True, linewidth = 1000)
 
     recycler_matrix = create_production_matrix([(0.16, 0.25)] * (NUM_TIERS - 1) + [(0, 0)])
     em_plant_matrix = create_production_matrix([(0.20, 2.4)] * 2 + [(0, 2.4)])
@@ -367,20 +372,31 @@ if __name__ == "__main__":
         em_plant_matrix
     )
 
-    print(transition_matrix)
+    print("## Transition matrix:\n", transition_matrix, "\n")
 
     input_vector = np.array([100] + [0] * (NUM_TIERS * 2 - 1))
 
     result_flows = [input_vector]
-    while True:
-        result_flows.append(result_flows[-1] @ transition_matrix)
+    ii = 0
 
-        if sum(abs(result_flows[-2] - result_flows[-1])) < 1E-5:
+    print("## Iterations:")
+
+    print(ii, "\t", input_vector)
+
+    while True:
+        ii += 1
+        result_flows_this_iteration = result_flows[-1] @ transition_matrix
+
+        print(ii, "\t", result_flows_this_iteration)
+
+        result_flows.append(result_flows_this_iteration)
+
+        if sum(abs(result_flows[-2] - result_flows[-1])) < 1E-2:
             # There's nothing left in the system
+            print("\n")
             break
 
     print(sum(result_flows))
-    print(" & ".join([str(float(round(i, 2))) for i in sum(result_flows)]))
 
 
 
