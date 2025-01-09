@@ -1,7 +1,7 @@
 import numpy as np
 from typing import Union, List, Tuple
 import itertools
-# from tqdm import tqdm
+from tqdm import tqdm
 from enum import Enum
 import pandas
 
@@ -56,13 +56,13 @@ def get_assembler_parameters(
 
     res = [(0, 0)] * NUM_TIERS
 
-    for i, (prod_count, qual_count) in enumerate(assembler_modules_config):
+    for i, (nP, nQ) in enumerate(assembler_modules_config):
         if i == production_rows:
             break
 
         # Assembler stats
-        production_ratio = (1 + min(base_prod_bonus + prod_count * prod_module_bonus, 3)) * recipe_ratio
-        quality_chance = qual_count * qual_module_bonus
+        production_ratio = min(base_prod_bonus + nP * prod_module_bonus, 4) * recipe_ratio
+        quality_chance = nQ * qual_module_bonus
 
         res[i] = (quality_chance, production_ratio)
 
@@ -115,19 +115,21 @@ def recycler_assembler_loop(
         qual_module_bonus
     )
 
+    # Create the transition matrix
+    transition_matrix = create_transition_matrix(
+        create_production_matrix(recycler_parameters),
+        create_production_matrix(assembler_parameters)
+    )
+
+    # Handle the case where input_vector has just been given as a single scalar value
     if type(input_vector) in (float, int):
         input_vector = np.array([input_vector] + [0] * (NUM_TIERS*2 - 1))
     
     result_flows = [input_vector]
     while True:
-        result_flows.append(
-            result_flows[-1] @ create_transition_matrix(
-                create_production_matrix(recycler_parameters),
-                create_production_matrix(assembler_parameters)
-            )
-        )
+        result_flows.append(result_flows[-1] @ transition_matrix)
 
-        if sum(abs(result_flows[-2] - result_flows[-1])) < 1E-10:
+        if sum(abs(result_flows[-2] - result_flows[-1])) < 1E-2:
             # There's nothing left in the system
             break
 
@@ -404,7 +406,30 @@ if __name__ == "__main__":
     # In the simple case, the output is the number of highest-tier products resulting from the input vector
     print(sum(result_flows))
 
+    # Compact AR loop, replicating the manually-generated results above
+    output_flows = recycler_assembler_loop(
+        input_vector= input_vector,
+        assembler_modules_config=[(0,5), (0,5), (0,0)],  # Modules configuration of assemblers for every quality level (nP, nQ)
+        items_quality_to_keep=NUM_TIERS,  # Don't recycle rare items (default)
+        ingredients_quality_to_keep = None,  # Don't keep any ingredients
+        base_prod_bonus=2.4,  # base productivity of assembler + productivity technologies
+        recipe_ratio=1,  # Ratio of items to ingredients of the recipe
+        prod_module_bonus=0.06,
+        qual_module_bonus=0.04
+    )
+    print(output_flows)
 
-
+    # Same again, but this sensibly time putting productivity modules in the Tier 3 assembler + unlocking Mk3 ProdMod
+    output_flows = recycler_assembler_loop(
+        input_vector= input_vector,
+        assembler_modules_config=[(0,5), (0,5), (5,0)],  # Modules configuration of assemblers for every quality level
+        items_quality_to_keep=NUM_TIERS,  # Don't recycle rare items (default)
+        ingredients_quality_to_keep = None,  # Don't keep any ingredients
+        base_prod_bonus=2.4,  # base productivity of assembler + productivity technologies
+        recipe_ratio=1,  # Ratio of items to ingredients of the recipe
+        prod_module_bonus=0.1,
+        qual_module_bonus=0.04
+    )
+    print(output_flows)
 
 
