@@ -1,4 +1,4 @@
-from quality import custom_production_matrix
+from quality import create_production_matrix
 import numpy as np
 from functools import lru_cache
 from typing import Union
@@ -24,7 +24,7 @@ def recycler_matrix(quality_chance : float, quality_to_keep : int = 5, productio
     recycling_rows = quality_to_keep - 1
     saving_rows = 5 - recycling_rows
 
-    return custom_production_matrix(
+    return create_production_matrix(
         [(quality_chance, production_ratio)] * recycling_rows + [(0, 0)] * saving_rows
     )
 
