@@ -3,14 +3,14 @@ import numpy as np
 from enum import IntEnum
 from typing import Union, List, Tuple
 
-NUM_TIERS = 3
+NUM_TIERS = 4
 
 class QualityTier(IntEnum):
     Normal    = 0
     Uncommon  = 1
     Rare      = 2
-    # Epic      = 3
-    # Legendary = 4
+    Epic      = 3
+    Legendary = 4
 
 
 def quality_probability(quality_chance : float, input_tier : QualityTier, output_tier : QualityTier) -> float:
@@ -28,7 +28,7 @@ def quality_probability(quality_chance : float, input_tier : QualityTier, output
     
     # Basic validations
     assert 0 <= quality_chance <= 1
-    assert 0 <= input_tier  <= (NUM_TIERS-1) and type(input_tier)  == int
+    assert 0 <= input_tier <= (NUM_TIERS-1) and type(input_tier) == int
     assert 0 <= output_tier <= (NUM_TIERS-1) and type(output_tier) == int
 
     # Some QoL conversions
@@ -39,16 +39,16 @@ def quality_probability(quality_chance : float, input_tier : QualityTier, output
     if input_tier > output_tier:
         return 0
     
-    # If the item is already rare, it will remain rare
-    if input_tier == QualityTier.Rare:
+    # If the item is already in the top quality tier, it will remain so
+    if input_tier == NUM_TIERS - 1:
         return 1
     
     # Probability of item staying in the same tier
     if input_tier == output_tier:
         return 1 - quality_chance
     
-    # Probability of item going straight to rare
-    if output_tier == QualityTier.Rare:
+    # Probability of item going straight to the top quality tier
+    if output_tier == NUM_TIERS - 1:
         return quality_chance / (10 ** ((NUM_TIERS-2) - i))
     
     # else
@@ -110,8 +110,12 @@ def create_production_matrix(parameters_per_row : List[Tuple[float, float]]) -> 
 if __name__ == "__main__":
     np.set_printoptions(suppress=True)
 
-    params_BC_em_plant = [(0.2, 1.5), (0.2, 1.5), (0, 1.8)]
-    prod_mat_BC_em_plant = create_production_matrix(params_BC_em_plant)
+    qual_mat_EMP = quality_matrix(0.2)
 
-    print(prod_mat_BC_em_plant)
+    print(qual_mat_EMP)
+
+    # params_BC_em_plant = [(0.2, 1.5)] * (NUM_TIERS-1) + [(0, 1.5)]
+    # prod_mat_BC_em_plant = create_production_matrix(params_BC_em_plant)
+    #
+    # print(prod_mat_BC_em_plant)
 
