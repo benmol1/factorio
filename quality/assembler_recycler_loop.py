@@ -32,6 +32,18 @@ def create_transition_matrix(assembler_matrix : np.ndarray, recycler_matrix : np
 
     return res
 
+def create_crafting_time_matrix(transition_matrix : np.ndarray, assembler_speed : float, recycler_speed : float) -> np.ndarray:
+
+    res = np.zeros((NUM_TIERS*2,NUM_TIERS*2))
+
+    for i in range(NUM_TIERS*2):
+        for j in range(NUM_TIERS*2):
+            if i < NUM_TIERS:
+                res[i][j] = transition_matrix[i][j] / assembler_speed
+            else:
+                res[i][j] = transition_matrix[i][j] / (recycler_speed / 16)
+
+    return res
 
 def get_assembler_parameters(
         assembler_modules_config: Union[Tuple[float, float], List[Tuple[float, float]]],
@@ -80,7 +92,11 @@ def assembler_recycler_loop(
         base_prod_bonus : float = 0, # base productivity of assembler + productivity technologies
         recipe_ratio : float = 1, # Ratio of items to ingredients of the recipe
         prod_module_bonus : float = BEST_PROD_MODULE,
-        qual_module_bonus : float = BEST_QUAL_MODULE) -> np.array:
+        qual_module_bonus : float = BEST_QUAL_MODULE,
+        assembler_speed : float = 2,
+        recycler_speed : float = 0.5,
+        print_crafting_time_matrix : float = False
+) -> np.array:
     """Returns a vector with values for each quality level that mean different things, depending on whether that quality is kept or recycled:
         - If the quality is kept: the value is the production rate of ingredients/items of that quality level.
         - If the quality is recycled: the value is the internal flow rate of ingredients/items of that quality level in the system.
@@ -90,12 +106,14 @@ def assembler_recycler_loop(
     Args:
         input_vector (Union[np.array, float]): The ingredients and items intake of the system.
         assembler_modules_config (Union[Tuple[float, float], List[Tuple[float, float]]]): Number of productivity and quality modules for the assemblers of each quality of item.
-        product_quality_to_keep (Union[int, None], optional): Minimum quality level of the items to be removed from the system. Defaults to 5 (Legendary). If set to None, nothing is removed.
-        ingredient_quality_to_keep (Union[int, None], optional): Minimum quality level of the ingredients to be removed from the system. Defaults to 5 (Legendary). If set to None, nothing is removed.
+        product_quality_to_keep (Union[int, None], optional): Minimum quality level of the items to be removed from the system.
+        ingredient_quality_to_keep (Union[int, None], optional): Minimum quality level of the ingredients to be removed from the system.
         base_prod_bonus (float, optional): Base productivity of assembler + productivity technologies. Defaults to 0.
         recipe_ratio (float, optional): Ratio of items to ingredients of the crafting recipe. Defaults to 1.
-        prod_module_bonus (float, optional): Productivity bonus from productivity modules. Defaults to 25%.
-        qual_module_bonus (float, optional): Quality chance bonus from quality modules. Defaults to 6.2%.
+        prod_module_bonus (float, optional): Productivity bonus from productivity modules.
+        qual_module_bonus (float, optional): Quality chance bonus from quality modules.
+        assembler_speed
+        recycler_speed
 
     Returns:
         np.array: Vector with values for each quality level. The first five values represent the ingredients and the last five values represent the items.
@@ -125,6 +143,15 @@ def assembler_recycler_loop(
         assembler_matrix=create_production_matrix(assembler_parameters),
         recycler_matrix=create_production_matrix(recycler_parameters)
     )
+
+    crafting_time_matrix = create_crafting_time_matrix(
+        transition_matrix,
+        assembler_speed,
+        recycler_speed
+    )
+
+    if print_crafting_time_matrix:
+        print("Crafting time matrix:\n", crafting_time_matrix)
 
     # Handle the case where input_vector has just been given as a single scalar value
     if type(input_vector) in (float, int):
@@ -304,8 +331,9 @@ if __name__ == "__main__":
                                            product_quality_to_keep=NUM_TIERS-1,
                                            ingredient_quality_to_keep=None,
                                            base_prod_bonus=base_prod, recipe_ratio=1,
-                                           prod_module_bonus=BEST_PROD_MODULE,
-                                           qual_module_bonus=BEST_QUAL_MODULE)
+                                           prod_module_bonus=0,
+                                           qual_module_bonus=BEST_QUAL_MODULE,
+                                           print_crafting_time_matrix=True)
     print(output_flows, "\n")
 
 
