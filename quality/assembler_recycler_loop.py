@@ -7,7 +7,7 @@ import pandas
 
 from quality import create_production_matrix
 
-NUM_TIERS = 4
+NUM_TIERS = 3
 BEST_PROD_MODULE = 0.100 # [0.100, 0.130, 0.160, 0.190, 0.250]
 BEST_QUAL_MODULE = 0.040 # [0.025, 0.032, 0.040, 0.047, 0.062]
 
@@ -32,6 +32,14 @@ def create_transition_matrix(assembler_matrix : np.ndarray, recycler_matrix : np
 
     return res
 
+
+def create_crafting_time_vector(speed_assembler : float, speed_recycler : float, recipe_time : float) -> np.ndarray:
+
+    res = [recipe_time / speed_assembler] * NUM_TIERS + [recipe_time / (16 * speed_recycler)] * NUM_TIERS
+
+    return np.array(res)
+
+
 def create_crafting_time_matrix(transition_matrix : np.ndarray, assembler_speed : float, recycler_speed : float) -> np.ndarray:
 
     res = np.zeros((NUM_TIERS*2,NUM_TIERS*2))
@@ -41,7 +49,7 @@ def create_crafting_time_matrix(transition_matrix : np.ndarray, assembler_speed 
             if i < NUM_TIERS:
                 res[i][j] = transition_matrix[i][j] / assembler_speed
             else:
-                res[i][j] = transition_matrix[i][j] / (recycler_speed / 16)
+                res[i][j] = transition_matrix[i][j] / (recycler_speed) / 16
 
     return res
 
@@ -93,8 +101,9 @@ def assembler_recycler_loop(
         recipe_ratio : float = 1, # Ratio of items to ingredients of the recipe
         prod_module_bonus : float = BEST_PROD_MODULE,
         qual_module_bonus : float = BEST_QUAL_MODULE,
-        assembler_speed : float = 2,
-        recycler_speed : float = 0.5,
+        speed_assembler : float = 2,
+        speed_recycler : float = 0.5,
+        recipe_time : float = 1,
         print_crafting_time_matrix : float = False
 ) -> np.array:
     """Returns a vector with values for each quality level that mean different things, depending on whether that quality is kept or recycled:
@@ -112,8 +121,8 @@ def assembler_recycler_loop(
         recipe_ratio (float, optional): Ratio of items to ingredients of the crafting recipe. Defaults to 1.
         prod_module_bonus (float, optional): Productivity bonus from productivity modules.
         qual_module_bonus (float, optional): Quality chance bonus from quality modules.
-        assembler_speed
-        recycler_speed
+        speed_assembler
+        speed_recycler
 
     Returns:
         np.array: Vector with values for each quality level. The first five values represent the ingredients and the last five values represent the items.
@@ -144,14 +153,15 @@ def assembler_recycler_loop(
         recycler_matrix=create_production_matrix(recycler_parameters)
     )
 
-    crafting_time_matrix = create_crafting_time_matrix(
-        transition_matrix,
-        assembler_speed,
-        recycler_speed
+    crafting_time_vector = create_crafting_time_vector(
+        speed_assembler,
+        speed_recycler,
+        recipe_time
     )
 
     if print_crafting_time_matrix:
-        print("Crafting time matrix:\n", crafting_time_matrix)
+        print("Transition matrix:\n", transition_matrix)
+        print("Crafting time vector:\n", crafting_time_vector)
 
     # Handle the case where input_vector has just been given as a single scalar value
     if type(input_vector) in (float, int):
@@ -280,8 +290,9 @@ def efficiency_table():
     print(pandas.DataFrame(table).T.to_string())
 
 
-
-def verbose_AR_loop(qual_assembler, prod_assembler, qual_recycler, prod_recycler=0.25):
+def verbose_AR_loop(qual_assembler, prod_assembler,
+                    qual_recycler, prod_recycler=0.25,
+                    speed_assembler=1, speed_recycler=0.5, recipe_time=1):
 
     # Create and print the transition matrix
     recycler_matrix = create_production_matrix([(qual_recycler, prod_recycler)] * (NUM_TIERS - 1) + [(0, 0)])
@@ -292,9 +303,12 @@ def verbose_AR_loop(qual_assembler, prod_assembler, qual_recycler, prod_recycler
         recycler_matrix=recycler_matrix
     )
 
+    crafting_time_vector = create_crafting_time_vector(speed_assembler, speed_recycler, recipe_time)
+
     print("## Transition matrix:\n", transition_matrix, "\n")
+    print("## Crafting time vector:\n", crafting_time_vector, "\n")
     # Create and print the input vector
-    input_vector = np.array([100] + [0] * (NUM_TIERS * 2 - 1))
+    input_vector = np.array([1] + [0] * (NUM_TIERS * 2 - 1))
     ii = 0
     print("## Iterations:")
     print(ii, "\t", input_vector)
@@ -325,22 +339,32 @@ if __name__ == "__main__":
     n_slots = 5
     base_prod = 1.5
 
-    # Compact AR loop for an EM plants at our current tech level, with the classic [Q^(n-1)P] strategy
-    output_flows = assembler_recycler_loop(input_vector=100,
-                                           assembler_modules_config=[(0, n_slots)] * (NUM_TIERS-1) + [(n_slots, 0)],
-                                           product_quality_to_keep=NUM_TIERS-1,
-                                           ingredient_quality_to_keep=None,
-                                           base_prod_bonus=base_prod, recipe_ratio=1,
-                                           prod_module_bonus=0,
-                                           qual_module_bonus=BEST_QUAL_MODULE,
-                                           print_crafting_time_matrix=True)
-    print(output_flows, "\n")
+    verbose_AR_loop(qual_assembler=n_slots*BEST_QUAL_MODULE,
+                    prod_assembler=base_prod,
+                    qual_recycler=4*BEST_QUAL_MODULE,
+                    speed_assembler=2,
+                    speed_recycler=0.5,
+                    recipe_time=60)
 
-
-    output = SystemOutput.ITEMS
-    strategy = ModuleStrategy.OPTIMIZE
-
-    eff = assembler_recycler_efficiency(n_slots, base_prod, output, strategy,
-                                        prod_mod_bonus=BEST_PROD_MODULE,
-                                        qual_mod_bonus=BEST_QUAL_MODULE)
+    # # Compact AR loop for an EM plants at our current tech level, with the classic [Q^(n-1)P] strategy
+    # output_flows = assembler_recycler_loop(input_vector=100,
+    #                                        assembler_modules_config=[(0, n_slots)] * (NUM_TIERS-1) + [(n_slots, 0)],
+    #                                        product_quality_to_keep=NUM_TIERS,
+    #                                        ingredient_quality_to_keep=None,
+    #                                        base_prod_bonus=base_prod, recipe_ratio=1,
+    #                                        prod_module_bonus=0,
+    #                                        qual_module_bonus=BEST_QUAL_MODULE,
+    #                                        assembler_speed=2,
+    #                                        recycler_speed=0.5,
+    #                                        recipe_time=60,
+    #                                        print_crafting_time_matrix=True)
+    # print(output_flows, "\n")
+    #
+    #
+    # output = SystemOutput.ITEMS
+    # strategy = ModuleStrategy.OPTIMIZE
+    #
+    # eff = assembler_recycler_efficiency(n_slots, base_prod, output, strategy,
+    #                                     prod_mod_bonus=BEST_PROD_MODULE,
+    #                                     qual_mod_bonus=BEST_QUAL_MODULE)
 

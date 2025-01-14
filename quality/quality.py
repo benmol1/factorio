@@ -3,7 +3,7 @@ import numpy as np
 from enum import IntEnum
 from typing import Union, List, Tuple
 
-NUM_TIERS = 4
+NUM_TIERS = 3
 
 class QualityTier(IntEnum):
     Normal    = 0
