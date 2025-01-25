@@ -162,8 +162,8 @@ def assembler_recycler_loop(
     crafting_time_vector = create_crafting_time_vector(speed_assembler, speed_recycler, recipe_time)
 
     if print_crafting_time_matrix:
-        print("Transition matrix:\n", transition_matrix)
-        print("Crafting time vector:\n", crafting_time_vector)
+        print("## Transition matrix:\n", transition_matrix)
+        print("## Crafting time vector:\n", crafting_time_vector)
 
     # Handle the case where input_vector has just been given as a single scalar value
     if type(input_vector) in (float, int):
@@ -329,8 +329,8 @@ def verbose_AR_loop(
 
     crafting_time_vector = create_crafting_time_vector(speed_assembler, speed_recycler, recipe_time)
 
-    print("## Transition matrix:\n", transition_matrix, "\n")
-    print("## Crafting time vector:\n", crafting_time_vector, "\n")
+    print("-- Transition matrix:\n", transition_matrix, "\n")
+    print("-- Crafting time vector:\n", crafting_time_vector, "\n")
     # Create and print the input vector
     input_vector = np.array([1] + [0] * (NUM_TIERS * 2 - 1))
     ii = 0
@@ -361,7 +361,8 @@ if __name__ == "__main__":
     np.set_printoptions(precision=2, suppress=True, linewidth=1000)
 
     n_slots = 5
-    base_prod = 1.5
+    base_prod = 2.4
+    full_prod_config = [(n_slots, 0)] * NUM_TIERS
 
     # verbose_AR_loop(
     #     qual_assembler=n_slots * BEST_QUAL_MODULE,
@@ -372,26 +373,27 @@ if __name__ == "__main__":
     #     recipe_time=60,
     # )
 
-    # Compact AR loop for an EM plants at our current tech level, with the classic [Q^(n-1)P] strategy
+
+    # Compact AR loop for an EM plants at our current tech level
     output_flows = assembler_recycler_loop(
         input_vector=100,
-        assembler_modules_config=[(0, n_slots)] * (NUM_TIERS - 1) + [(n_slots, 0)],
+        assembler_modules_config=full_prod_config,
         product_quality_to_keep=NUM_TIERS,
         ingredient_quality_to_keep=None,
         base_prod_bonus=base_prod,
         recipe_ratio=1,
         prod_module_bonus=BEST_PROD_MODULE,
         qual_module_bonus=BEST_QUAL_MODULE,
-        speed_assembler=2,
+        speed_assembler=5.3,
         speed_recycler=0.5,
-        recipe_time=60,
-        print_crafting_time_matrix=False,
+        recipe_time=10,
+        print_crafting_time_matrix=True,
     )
-    print(output_flows, "\n")
+    print("## Cumulative output flows:\n", output_flows, "\n")
 
-    output = SystemOutput.ITEMS
-    strategy = ModuleStrategy.OPTIMIZE
-
-    eff = assembler_recycler_efficiency(
-        n_slots, base_prod, output, strategy, prod_mod_bonus=BEST_PROD_MODULE, qual_mod_bonus=BEST_QUAL_MODULE
-    )
+    # output = SystemOutput.ITEMS
+    # strategy = ModuleStrategy.OPTIMIZE
+    #
+    # eff = assembler_recycler_efficiency(
+    #     n_slots, base_prod, output, strategy, prod_mod_bonus=BEST_PROD_MODULE, qual_mod_bonus=BEST_QUAL_MODULE
+    # )
