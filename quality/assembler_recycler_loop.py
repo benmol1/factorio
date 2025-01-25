@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from typing import Union, List, Tuple
 import itertools
 from tqdm import tqdm
@@ -38,6 +39,19 @@ def create_crafting_time_vector(speed_assembler: float, speed_recycler: float, r
     res = [recipe_time / speed_assembler] * NUM_TIERS + [recipe_time / (16 * speed_recycler)] * NUM_TIERS
 
     return np.array(res)
+
+
+def compute_crafting_time(input_flows, ct_vector):
+
+    ct = 0
+
+    # The assemblers are in parallel, so only the max crafting time is relevant
+    ct += np.max(np.multiply(input_flows[:NUM_TIERS], ct_vector[:NUM_TIERS]))
+
+    # The recyclers are in series, so the total crafting time is relevant
+    ct += np.dot(input_flows[NUM_TIERS:], ct_vector[NUM_TIERS:])
+
+    return ct
 
 
 def create_crafting_time_matrix(
@@ -112,7 +126,7 @@ def assembler_recycler_loop(
     speed_assembler: float = 2,
     speed_recycler: float = 0.5,
     recipe_time: float = 1,
-    print_crafting_time_matrix: float = False,
+    verbose: bool = False,
 ) -> np.array:
     """Returns a vector with values for each quality level that mean different things, depending on whether that quality is kept or recycled:
         - If the quality is kept: the value is the production rate of ingredients/items of that quality level.
@@ -161,7 +175,7 @@ def assembler_recycler_loop(
 
     crafting_time_vector = create_crafting_time_vector(speed_assembler, speed_recycler, recipe_time)
 
-    if print_crafting_time_matrix:
+    if verbose:
         print("## Transition matrix:\n", transition_matrix)
         print("## Crafting time vector:\n", crafting_time_vector)
 
@@ -169,13 +183,28 @@ def assembler_recycler_loop(
     if type(input_vector) in (float, int):
         input_vector = np.array([input_vector] + [0] * (NUM_TIERS * 2 - 1))
 
+    # Initialise loop variable and output arrays
+    ii = 0
     result_flows = [input_vector]
+    crafting_time = [0]
+
     while True:
+        ii += 1
+        crafting_time.append(compute_crafting_time(result_flows[-1], crafting_time_vector))
         result_flows.append(result_flows[-1] @ transition_matrix)
 
         if sum(abs(result_flows[-2] - result_flows[-1])) < 1e-2:
             # There's nothing left in the system
             break
+
+    if verbose:
+        col_headers = ['I1', 'I2', 'I3', 'I4', 'P1', 'P2', 'P3', 'P4']
+        output_df = pd.DataFrame(data=result_flows, columns=col_headers)
+        crafting_time_series = pd.DataFrame(data=crafting_time, columns=['Crafting time'])
+        output_df = output_df.join(crafting_time_series)
+
+        print("## Iterations:")
+        print(output_df)
 
     return sum(result_flows)
 
@@ -306,73 +335,19 @@ def efficiency_table():
                 eff = assembler_recycler_efficiency(slots, base_prod, output, strategy)
                 table[assembler_type][KEY_NAMES[(output, strategy)]] = eff
 
-    print(pandas.DataFrame(table).T.to_string())
-
-
-def verbose_AR_loop(
-    qual_assembler,
-    prod_assembler,
-    qual_recycler,
-    prod_recycler=0.25,
-    speed_assembler=1,
-    speed_recycler=0.5,
-    recipe_time=1,
-):
-
-    # Create and print the transition matrix
-    recycler_matrix = create_production_matrix([(qual_recycler, prod_recycler)] * (NUM_TIERS - 1) + [(0, 0)])
-    em_plant_matrix = create_production_matrix(
-        [(qual_assembler, prod_assembler)] * (NUM_TIERS - 1) + [(0, prod_assembler)]
-    )
-
-    transition_matrix = create_transition_matrix(assembler_matrix=em_plant_matrix, recycler_matrix=recycler_matrix)
-
-    crafting_time_vector = create_crafting_time_vector(speed_assembler, speed_recycler, recipe_time)
-
-    print("-- Transition matrix:\n", transition_matrix, "\n")
-    print("-- Crafting time vector:\n", crafting_time_vector, "\n")
-    # Create and print the input vector
-    input_vector = np.array([1] + [0] * (NUM_TIERS * 2 - 1))
-    ii = 0
-    print("## Iterations:")
-    print(ii, "\t", input_vector)
-    result_flows = [input_vector]
-    # Apply the transition matrix iteratively, until the resulting flows become very small
-    while True:
-        ii += 1
-
-        # Compute & print the flows for this iteration
-        result_flows_this_iteration = result_flows[-1] @ transition_matrix
-        print(ii, "\t", result_flows_this_iteration)
-
-        # append this iteration to the overall results array
-        result_flows.append(result_flows_this_iteration)
-
-        if sum(abs(result_flows[-2] - result_flows[-1])) < 1e-2:
-            # There's nothing left in the system
-            break
-    # Print the sum of all flows.
-    # In the simple case, the output is the number of highest-tier products resulting from the input vector
-    print(sum(result_flows))
+    print(pd.DataFrame(table).T.to_string())
 
 
 if __name__ == "__main__":
 
     np.set_printoptions(precision=2, suppress=True, linewidth=1000)
+    pd.set_option("display.max_columns", 12)
+    pd.set_option("colheader_justify", "right")
+    pd.options.display.float_format = '{:.1f}'.format
 
     n_slots = 5
     base_prod = 2.4
     full_prod_config = [(n_slots, 0)] * NUM_TIERS
-
-    # verbose_AR_loop(
-    #     qual_assembler=n_slots * BEST_QUAL_MODULE,
-    #     prod_assembler=base_prod,
-    #     qual_recycler=4 * BEST_QUAL_MODULE,
-    #     speed_assembler=2,
-    #     speed_recycler=0.5,
-    #     recipe_time=60,
-    # )
-
 
     # Compact AR loop for an EM plants at our current tech level
     output_flows = assembler_recycler_loop(
@@ -384,12 +359,13 @@ if __name__ == "__main__":
         recipe_ratio=1,
         prod_module_bonus=BEST_PROD_MODULE,
         qual_module_bonus=BEST_QUAL_MODULE,
-        speed_assembler=5.3,
+        speed_assembler=2,
         speed_recycler=0.5,
         recipe_time=10,
-        print_crafting_time_matrix=True,
+        verbose=True,
     )
     print("## Cumulative output flows:\n", output_flows, "\n")
+
 
     # output = SystemOutput.ITEMS
     # strategy = ModuleStrategy.OPTIMIZE
