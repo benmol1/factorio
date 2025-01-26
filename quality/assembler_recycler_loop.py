@@ -47,17 +47,33 @@ def create_crafting_time_vector(speed_assembler: float, num_assemblers: list,
     return np.array(res)
 
 
-def compute_crafting_time(input_flows, ct_vector):
+def compute_crafting_time(input_flows: np.ndarray, prev_crafting_time: list,
+                          recipe_ratio: float, ct_vector: np.ndarray) -> list:
 
     ct = 0
 
     # The assemblers are in parallel, so only the max crafting time is relevant
-    ct += np.max(np.multiply(input_flows[:NUM_TIERS], ct_vector[:NUM_TIERS]))
+    assembler_crafting_times = np.multiply(input_flows[:NUM_TIERS] * recipe_ratio, ct_vector[:NUM_TIERS])
+    max_assembler_crafting_time = np.max(assembler_crafting_times)
+    max_assembler_crafting_time_tier = np.argmax(assembler_crafting_times) + 1
+    ct += max_assembler_crafting_time
 
     # The recyclers are in series, so the total crafting time is relevant
-    ct += np.dot(input_flows[NUM_TIERS:], ct_vector[NUM_TIERS:])
+    recycler_crafting_time = np.dot(input_flows[NUM_TIERS:], ct_vector[NUM_TIERS:])
+    ct += recycler_crafting_time
 
-    return ct
+    if max_assembler_crafting_time > recycler_crafting_time:
+        max_time_index = max_assembler_crafting_time_tier
+    else:
+        max_time_index = NUM_TIERS + 1
+
+    # Compare the crafting time of this iteration to the previous one; if the crafting time here is greater then
+    # report the bottleneck
+    bottleneck = False
+    if (prev_crafting_time[0] > 0) and (ct > 1) and (ct - prev_crafting_time[0] > 0.1):
+        bottleneck = True
+
+    return [ct, max_time_index, bottleneck]
 
 
 def create_crafting_time_matrix(
@@ -148,7 +164,7 @@ def assembler_recycler_loop(
         product_quality_to_keep (Union[int, None], optional): Minimum quality level of the items to be removed from the system.
         ingredient_quality_to_keep (Union[int, None], optional): Minimum quality level of the ingredients to be removed from the system.
         base_prod_bonus (float, optional): Base productivity of assembler + productivity technologies. Defaults to 0.
-        recipe_ratio (float, optional): Ratio of items to ingredients of the crafting recipe. Defaults to 1.
+        recipe_ratio (float, optional): Ratio of products:ingredients of the crafting recipe. Defaults to 1.
         prod_module_bonus (float, optional): Productivity bonus from productivity modules.
         qual_module_bonus (float, optional): Quality chance bonus from quality modules.
         speed_assembler
@@ -196,25 +212,34 @@ def assembler_recycler_loop(
     # Initialise loop variable and output arrays
     ii = 0
     result_flows = [input_vector]
-    crafting_time = [0]
+    crafting_time = [[0, 0, False]]
 
     while True:
         ii += 1
-        crafting_time.append(compute_crafting_time(result_flows[-1], crafting_time_vector))
+        ct_this_iteration = compute_crafting_time(result_flows[-1],
+                                                  crafting_time[-1],
+                                                  recipe_ratio,
+                                                  crafting_time_vector)
+
+        crafting_time.append(ct_this_iteration)
         result_flows.append(result_flows[-1] @ transition_matrix)
 
         if sum(abs(result_flows[-2] - result_flows[-1])) < 1e-2:
             # There's nothing left in the system
             break
 
-    if verbose:
-        col_headers = ['I1', 'I2', 'I3', 'I4', 'P1', 'P2', 'P3', 'P4']
-        output_df = pd.DataFrame(data=result_flows, columns=col_headers)
-        crafting_time_series = pd.DataFrame(data=crafting_time, columns=['Crafting time'])
-        output_df = output_df.join(crafting_time_series)
+    # Create the output dataframe
+    col_headers = ['I1', 'I2', 'I3', 'I4', 'P1', 'P2', 'P3', 'P4']
+    output_df = pd.DataFrame(data=result_flows, columns=col_headers)
+    crafting_time_df = pd.DataFrame(data=crafting_time, columns=['Crafting time', 'Max time index', 'Bottleneck'])
+    output_df = output_df.join(crafting_time_df)
 
+    if verbose:
         print("## Iterations:")
         print(output_df)
+
+    if sum(output_df['Bottleneck'] > 0):
+        print(output_df[output_df['Bottleneck'] == True])
 
     return sum(result_flows)
 
@@ -352,6 +377,7 @@ if __name__ == "__main__":
 
     np.set_printoptions(precision=2, suppress=True, linewidth=1000)
     pd.set_option("display.max_columns", 12)
+    pd.set_option("display.max_rows", 20)
     pd.set_option("colheader_justify", "right")
     pd.options.display.float_format = '{:.1f}'.format
 
@@ -361,20 +387,20 @@ if __name__ == "__main__":
 
     # Compact AR loop for an EM plants at our current tech level
     output_flows = assembler_recycler_loop(
-        input_vector=4,
+        input_vector=88,
         assembler_modules_config=full_prod_config,
         product_quality_to_keep=NUM_TIERS,
         ingredient_quality_to_keep=None,
         base_prod_bonus=base_prod,
-        recipe_ratio=1,
+        recipe_ratio=(1/22),  # NB: ratio of products:ingredients in the recipe
         prod_module_bonus=BEST_PROD_MODULE,
         qual_module_bonus=BEST_QUAL_MODULE,
-        speed_assembler=2,
+        speed_assembler=5,
         speed_recycler=0.4,
         recipe_time=10,
-        num_assemblers=[4,1,1,1],
-        num_recyclers=6,
-        verbose=True,
+        num_assemblers=[4, 2, 2, 1],
+        num_recyclers=15,
+        verbose=False,
     )
     print("## Cumulative output flows:\n", output_flows, "\n")
 
