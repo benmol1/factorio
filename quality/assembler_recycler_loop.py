@@ -34,9 +34,15 @@ def create_transition_matrix(assembler_matrix: np.ndarray, recycler_matrix: np.n
     return res
 
 
-def create_crafting_time_vector(speed_assembler: float, speed_recycler: float, recipe_time: float) -> np.ndarray:
+def create_crafting_time_vector(speed_assembler: float, num_assemblers: list,
+                                speed_recycler: float, num_recyclers: int,
+                                recipe_time: float) -> np.ndarray:
 
     res = [recipe_time / speed_assembler] * NUM_TIERS + [recipe_time / (16 * speed_recycler)] * NUM_TIERS
+    num_entities_list = num_assemblers + ([num_recyclers] * NUM_TIERS)
+    num_entities = np.array(num_entities_list)
+
+    res = res / num_entities
 
     return np.array(res)
 
@@ -175,7 +181,9 @@ def assembler_recycler_loop(
         recycler_matrix=create_production_matrix(recycler_parameters),
     )
 
-    crafting_time_vector = create_crafting_time_vector(speed_assembler, speed_recycler, recipe_time)
+    crafting_time_vector = create_crafting_time_vector(speed_assembler, num_assemblers,
+                                                       speed_recycler, num_recyclers,
+                                                       recipe_time)
 
     if verbose:
         print("## Transition matrix:\n", transition_matrix)
