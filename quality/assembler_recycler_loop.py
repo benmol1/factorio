@@ -121,11 +121,13 @@ def assembler_recycler_loop(
     ingredient_quality_to_keep: Union[int, None] = NUM_TIERS,  # Don't assemble top tier ingredients (default)
     base_prod_bonus: float = 0,  # base productivity of assembler + productivity technologies
     recipe_ratio: float = 1,  # Ratio of items to ingredients of the recipe
+    recipe_time: float = 1,
     prod_module_bonus: float = BEST_PROD_MODULE,
     qual_module_bonus: float = BEST_QUAL_MODULE,
-    speed_assembler: float = 2,
+    speed_assembler: float = 1,
     speed_recycler: float = 0.5,
-    recipe_time: float = 1,
+    num_assemblers: list = [1] * NUM_TIERS,
+    num_recyclers: int = 1,
     verbose: bool = False,
 ) -> np.array:
     """Returns a vector with values for each quality level that mean different things, depending on whether that quality is kept or recycled:
