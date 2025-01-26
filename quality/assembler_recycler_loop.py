@@ -361,7 +361,7 @@ if __name__ == "__main__":
 
     # Compact AR loop for an EM plants at our current tech level
     output_flows = assembler_recycler_loop(
-        input_vector=100,
+        input_vector=4,
         assembler_modules_config=full_prod_config,
         product_quality_to_keep=NUM_TIERS,
         ingredient_quality_to_keep=None,
@@ -370,8 +370,10 @@ if __name__ == "__main__":
         prod_module_bonus=BEST_PROD_MODULE,
         qual_module_bonus=BEST_QUAL_MODULE,
         speed_assembler=2,
-        speed_recycler=0.5,
+        speed_recycler=0.4,
         recipe_time=10,
+        num_assemblers=[4,1,1,1],
+        num_recyclers=6,
         verbose=True,
     )
     print("## Cumulative output flows:\n", output_flows, "\n")
