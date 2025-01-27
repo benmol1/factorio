@@ -385,14 +385,14 @@ if __name__ == "__main__":
     pd.options.display.float_format = '{:.1f}'.format
 
     n_slots = 5
-    base_prod = 1.5
+    base_prod = 2.4
     full_qual_config = [(0, n_slots)] * (NUM_TIERS - 1) + [(n_slots, 0)]
     full_prod_config = [(n_slots, 0)] * NUM_TIERS
 
 
     # Compact AR loop for an EM plants at our current tech level
     output_flows = assembler_recycler_loop(
-        input_vector=2200,
+        input_vector=88,
         assembler_modules_config=full_prod_config,
         product_quality_to_keep=NUM_TIERS,
         ingredient_quality_to_keep=None,
@@ -400,19 +400,19 @@ if __name__ == "__main__":
         recipe_ratio=(1/22),  # NB: ratio of products:ingredients in the recipe
         prod_module_bonus=BEST_PROD_MODULE,
         qual_module_bonus=BEST_QUAL_MODULE,
-        speed_assemblers=[6, 10, 9, 5.3],
+        speed_assemblers=[6, 10.72, 9, 5.3],
         speed_recycler=0.4,
         recipe_time=10,
         num_assemblers=[4, 1, 1, 1],
         num_recyclers=14,
-        verbose=False,
+        verbose=True,
     )
     print("## Cumulative output flows:\n", output_flows, "\n")
 
 
-    output = SystemOutput.ITEMS
-    strategy = ModuleStrategy.OPTIMIZE
-
-    eff = assembler_recycler_efficiency(
-        n_slots, base_prod, output, strategy, prod_mod_bonus=BEST_PROD_MODULE, qual_mod_bonus=BEST_QUAL_MODULE
-    )
+    # output = SystemOutput.ITEMS
+    # strategy = ModuleStrategy.OPTIMIZE
+    #
+    # eff = assembler_recycler_efficiency(
+    #     n_slots, base_prod, output, strategy, prod_mod_bonus=BEST_PROD_MODULE, qual_mod_bonus=BEST_QUAL_MODULE
+    # )
