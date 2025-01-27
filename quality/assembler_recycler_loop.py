@@ -34,11 +34,13 @@ def create_transition_matrix(assembler_matrix: np.ndarray, recycler_matrix: np.n
     return res
 
 
-def create_crafting_time_vector(speed_assembler: float, num_assemblers: list,
+def create_crafting_time_vector(speed_assembler: list, num_assemblers: list,
                                 speed_recycler: float, num_recyclers: int,
                                 recipe_time: float) -> np.ndarray:
 
-    res = [recipe_time / speed_assembler] * NUM_TIERS + [recipe_time / (16 * speed_recycler)] * NUM_TIERS
+    speed_assembler = np.array(speed_assembler)
+
+    res = list(recipe_time / speed_assembler) + [recipe_time / (16 * speed_recycler)] * NUM_TIERS
     num_entities_list = num_assemblers + ([num_recyclers] * NUM_TIERS)
     num_entities = np.array(num_entities_list)
 
@@ -146,7 +148,7 @@ def assembler_recycler_loop(
     recipe_time: float = 1,
     prod_module_bonus: float = BEST_PROD_MODULE,
     qual_module_bonus: float = BEST_QUAL_MODULE,
-    speed_assembler: float = 1,
+    speed_assemblers: list = [1] * NUM_TIERS,
     speed_recycler: float = 0.5,
     num_assemblers: list = [1] * NUM_TIERS,
     num_recyclers: int = 1,
@@ -167,7 +169,7 @@ def assembler_recycler_loop(
         recipe_ratio (float, optional): Ratio of products:ingredients of the crafting recipe. Defaults to 1.
         prod_module_bonus (float, optional): Productivity bonus from productivity modules.
         qual_module_bonus (float, optional): Quality chance bonus from quality modules.
-        speed_assembler
+        speed_assemblers
         speed_recycler
 
     Returns:
@@ -197,7 +199,7 @@ def assembler_recycler_loop(
         recycler_matrix=create_production_matrix(recycler_parameters),
     )
 
-    crafting_time_vector = create_crafting_time_vector(speed_assembler, num_assemblers,
+    crafting_time_vector = create_crafting_time_vector(speed_assemblers, num_assemblers,
                                                        speed_recycler, num_recyclers,
                                                        recipe_time)
 
@@ -238,8 +240,9 @@ def assembler_recycler_loop(
         print("## Iterations:")
         print(output_df)
 
-    if sum(output_df['Bottleneck'] > 0):
-        print(output_df[output_df['Bottleneck'] == True])
+        if sum(output_df['Bottleneck'] > 0):
+            print(output_df[output_df['Bottleneck'] == True])
+            output_df.to_csv('output_df.csv')
 
     return sum(result_flows)
 
@@ -382,12 +385,14 @@ if __name__ == "__main__":
     pd.options.display.float_format = '{:.1f}'.format
 
     n_slots = 5
-    base_prod = 2.4
+    base_prod = 1.5
+    full_qual_config = [(0, n_slots)] * (NUM_TIERS - 1) + [(n_slots, 0)]
     full_prod_config = [(n_slots, 0)] * NUM_TIERS
+
 
     # Compact AR loop for an EM plants at our current tech level
     output_flows = assembler_recycler_loop(
-        input_vector=88,
+        input_vector=2200,
         assembler_modules_config=full_prod_config,
         product_quality_to_keep=NUM_TIERS,
         ingredient_quality_to_keep=None,
@@ -395,19 +400,19 @@ if __name__ == "__main__":
         recipe_ratio=(1/22),  # NB: ratio of products:ingredients in the recipe
         prod_module_bonus=BEST_PROD_MODULE,
         qual_module_bonus=BEST_QUAL_MODULE,
-        speed_assembler=5,
+        speed_assemblers=[6, 10, 9, 5.3],
         speed_recycler=0.4,
         recipe_time=10,
-        num_assemblers=[4, 2, 2, 1],
-        num_recyclers=15,
+        num_assemblers=[4, 1, 1, 1],
+        num_recyclers=14,
         verbose=False,
     )
     print("## Cumulative output flows:\n", output_flows, "\n")
 
 
-    # output = SystemOutput.ITEMS
-    # strategy = ModuleStrategy.OPTIMIZE
-    #
-    # eff = assembler_recycler_efficiency(
-    #     n_slots, base_prod, output, strategy, prod_mod_bonus=BEST_PROD_MODULE, qual_mod_bonus=BEST_QUAL_MODULE
-    # )
+    output = SystemOutput.ITEMS
+    strategy = ModuleStrategy.OPTIMIZE
+
+    eff = assembler_recycler_efficiency(
+        n_slots, base_prod, output, strategy, prod_mod_bonus=BEST_PROD_MODULE, qual_mod_bonus=BEST_QUAL_MODULE
+    )
