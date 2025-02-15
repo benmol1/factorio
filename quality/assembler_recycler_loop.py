@@ -7,7 +7,7 @@ from enum import Enum
 
 from quality import create_production_matrix
 
-NUM_TIERS = 4
+NUM_TIERS = 5
 BEST_PROD_MODULE = 0.190  # [0.100, 0.130, 0.160, 0.190, 0.250]
 BEST_QUAL_MODULE = 0.047  # [0.025, 0.032, 0.040, 0.047, 0.062]
 
@@ -34,9 +34,9 @@ def create_transition_matrix(assembler_matrix: np.ndarray, recycler_matrix: np.n
     return res
 
 
-def create_crafting_time_vector(speed_assembler: list, num_assemblers: list,
-                                speed_recycler: float, num_recyclers: int,
-                                recipe_time: float) -> np.ndarray:
+def create_crafting_time_vector(
+    speed_assembler: list, num_assemblers: list, speed_recycler: float, num_recyclers: int, recipe_time: float
+) -> np.ndarray:
 
     speed_assembler = np.array(speed_assembler)
 
@@ -49,8 +49,9 @@ def create_crafting_time_vector(speed_assembler: list, num_assemblers: list,
     return np.array(res)
 
 
-def compute_crafting_time(input_flows: np.ndarray, prev_crafting_time: list,
-                          recipe_ratio: float, ct_vector: np.ndarray) -> list:
+def compute_crafting_time(
+    input_flows: np.ndarray, prev_crafting_time: list, recipe_ratio: float, ct_vector: np.ndarray
+) -> list:
 
     ct = 0
 
@@ -199,9 +200,9 @@ def assembler_recycler_loop(
         recycler_matrix=create_production_matrix(recycler_parameters),
     )
 
-    crafting_time_vector = create_crafting_time_vector(speed_assemblers, num_assemblers,
-                                                       speed_recycler, num_recyclers,
-                                                       recipe_time)
+    crafting_time_vector = create_crafting_time_vector(
+        speed_assemblers, num_assemblers, speed_recycler, num_recyclers, recipe_time
+    )
 
     if verbose:
         print("## Transition matrix:\n", transition_matrix)
@@ -218,10 +219,9 @@ def assembler_recycler_loop(
 
     while True:
         ii += 1
-        ct_this_iteration = compute_crafting_time(result_flows[-1],
-                                                  crafting_time[-1],
-                                                  recipe_ratio,
-                                                  crafting_time_vector)
+        ct_this_iteration = compute_crafting_time(
+            result_flows[-1], crafting_time[-1], recipe_ratio, crafting_time_vector
+        )
 
         crafting_time.append(ct_this_iteration)
         result_flows.append(result_flows[-1] @ transition_matrix)
@@ -231,18 +231,18 @@ def assembler_recycler_loop(
             break
 
     # Create the output dataframe
-    col_headers = ['I1', 'I2', 'I3', 'I4', 'P1', 'P2', 'P3', 'P4']
+    col_headers = ["I1", "I2", "I3", "I4", "I5", "P1", "P2", "P3", "P4", "P5"]
     output_df = pd.DataFrame(data=result_flows, columns=col_headers)
-    crafting_time_df = pd.DataFrame(data=crafting_time, columns=['Crafting time', 'Max time index', 'Bottleneck'])
+    crafting_time_df = pd.DataFrame(data=crafting_time, columns=["Crafting time", "Max time index", "Bottleneck"])
     output_df = output_df.join(crafting_time_df)
 
     if verbose:
         print("## Iterations:")
         print(output_df)
 
-        if sum(output_df['Bottleneck'] > 0):
-            print(output_df[output_df['Bottleneck'] == True])
-            output_df.to_csv('output_df.csv')
+        if sum(output_df["Bottleneck"] > 0):
+            print(output_df[output_df["Bottleneck"] == True])
+            output_df.to_csv("output_df.csv")
 
     return sum(result_flows)
 
@@ -285,19 +285,19 @@ def assembler_recycler_efficiency(
     module_strategy: ModuleStrategy,
     prod_mod_bonus: float = BEST_PROD_MODULE,
     qual_mod_bonus: float = BEST_QUAL_MODULE,
+    target_tier: int = NUM_TIERS,
 ) -> float:
     "Returns the efficiency of the setup with the given parameters (%)."
     assert module_slots >= 0 and base_productivity >= 0
 
     if system_output == SystemOutput.ITEMS:
-        keep_items = NUM_TIERS
+        keep_items = target_tier
         keep_ingredients = None
+        result_index = NUM_TIERS + (target_tier - 1)
     else:  # system_output == SystemOutput.INGREDIENTS:
         keep_items = None
-        keep_ingredients = NUM_TIERS
-
-    # What is the output of the system: ingredients or items?
-    result_index = (NUM_TIERS - 1) if system_output == SystemOutput.INGREDIENTS else (NUM_TIERS * 2 - 1)
+        keep_ingredients = target_tier
+        result_index = target_tier - 1
 
     if module_strategy != ModuleStrategy.OPTIMIZE:
         if module_strategy == ModuleStrategy.FULL_PRODUCTIVITY:
@@ -382,37 +382,41 @@ if __name__ == "__main__":
     pd.set_option("display.max_columns", 12)
     pd.set_option("display.max_rows", 20)
     pd.set_option("colheader_justify", "right")
-    pd.options.display.float_format = '{:.1f}'.format
+    pd.options.display.float_format = "{:.1f}".format
 
-    n_slots = 5
-    base_prod = 2.4
+    n_slots = 4
+    base_prod = 1
     full_qual_config = [(0, n_slots)] * (NUM_TIERS - 1) + [(n_slots, 0)]
     full_prod_config = [(n_slots, 0)] * NUM_TIERS
 
-
-    # Compact AR loop for an EM plants at our current tech level
+    # Compact AR loop
     output_flows = assembler_recycler_loop(
-        input_vector=88,
+        input_vector=100,
         assembler_modules_config=full_prod_config,
-        product_quality_to_keep=NUM_TIERS,
+        product_quality_to_keep=NUM_TIERS - 1,
         ingredient_quality_to_keep=None,
         base_prod_bonus=base_prod,
-        recipe_ratio=(1/22),  # NB: ratio of products:ingredients in the recipe
+        recipe_ratio=1,  # NB: ratio of products:ingredients in the recipe
         prod_module_bonus=BEST_PROD_MODULE,
         qual_module_bonus=BEST_QUAL_MODULE,
-        speed_assemblers=[6, 10.72, 9, 5.3],
+        speed_assemblers=[1, 1, 1, 1, 1],
         speed_recycler=0.4,
-        recipe_time=10,
-        num_assemblers=[4, 1, 1, 1],
-        num_recyclers=14,
-        verbose=True,
+        recipe_time=2,
+        num_assemblers=[1, 1, 1, 1, 1],
+        num_recyclers=6,
+        verbose=False,
     )
     print("## Cumulative output flows:\n", output_flows, "\n")
 
+    output = SystemOutput.ITEMS
+    strategy = ModuleStrategy.OPTIMIZE
 
-    # output = SystemOutput.ITEMS
-    # strategy = ModuleStrategy.OPTIMIZE
-    #
-    # eff = assembler_recycler_efficiency(
-    #     n_slots, base_prod, output, strategy, prod_mod_bonus=BEST_PROD_MODULE, qual_mod_bonus=BEST_QUAL_MODULE
-    # )
+    eff = assembler_recycler_efficiency(
+        n_slots,
+        base_prod,
+        output,
+        strategy,
+        target_tier=4,  # targeting epic products
+        prod_mod_bonus=BEST_PROD_MODULE,
+        qual_mod_bonus=BEST_QUAL_MODULE,
+    )
