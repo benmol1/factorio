@@ -2,3 +2,4 @@
 .venv/
 .idea/
 quality/__pycache__/
+quality/output_df.csv
