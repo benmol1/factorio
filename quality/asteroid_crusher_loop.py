@@ -11,14 +11,14 @@ def asteroid_crusher_loop(input_vector : float, quality_chance : float, quality_
 
 def normal_to_legendary_ratio():
     indices = list(range(1, 13)) + [12.4]
-    ratios = [float(1/asteroid_crusher_loop(1, i)[4]) for i in indices]
+    ratios = [float(1/asteroid_crusher_loop(1, i/100)[4]) for i in indices]
 
     print(f"{indices[4:]=}")
     print(f"{ratios[4:]=}")
 
 
 def efficiency_data():
-    indices = list(range(1, 13)) + [12.4]
+    indices = list(range(1, 13)) + [0.124]
 
     uncommon  = [float(asteroid_crusher_loop(100, i, 2)[1]) for i in indices]
     rare      = [float(asteroid_crusher_loop(100, i, 3)[2]) for i in indices]
@@ -31,12 +31,17 @@ def efficiency_data():
     print(f"{legendary=}")
 
 def number_of_crushers_required_per_quality_level():
-    print(asteroid_crusher_loop(1, 12.4)[:4])
 
-    print(asteroid_crusher_loop(1, 12.4)[:4] / asteroid_crusher_loop(1, 12.4)[3])
+    qual = 0.094
+
+    print(asteroid_crusher_loop(1, qual)[:4])
+
+    print(asteroid_crusher_loop(1, qual)[:4] / asteroid_crusher_loop(1, qual)[3])
     
-    print(asteroid_crusher_loop(1, 12.4)[:4] * 3 / asteroid_crusher_loop(1, 12.4)[3])
+    print(asteroid_crusher_loop(1, qual)[:4] * 3 / asteroid_crusher_loop(1, qual)[3])
 
 if __name__ == "__main__":
-    np.set_printoptions(suppress=True)
+
+    np.set_printoptions(precision=2, suppress=True, linewidth=1000)
+
     number_of_crushers_required_per_quality_level()
