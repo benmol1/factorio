@@ -1,3 +1,4 @@
 # created by virtualenv automatically
 .venv/
 .idea/
+quality/output_df.csv
