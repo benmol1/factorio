@@ -8,8 +8,8 @@ from enum import Enum
 from quality import create_production_matrix
 
 NUM_TIERS = 5
-BEST_PROD_MODULE = 0.190  # [0.100, 0.130, 0.160, 0.190, 0.250]
-BEST_QUAL_MODULE = 0.047  # [0.025, 0.032, 0.040, 0.047, 0.062]
+BEST_PROD_MODULE = 0.19  # [0.100, 0.130, 0.160, 0.190, 0.250]
+BEST_QUAL_MODULE = 0.062  # [0.025, 0.032, 0.040, 0.047, 0.062]
 
 
 def create_transition_matrix(assembler_matrix: np.ndarray, recycler_matrix: np.ndarray) -> np.ndarray:
@@ -384,39 +384,39 @@ if __name__ == "__main__":
     pd.set_option("colheader_justify", "right")
     pd.options.display.float_format = "{:.1f}".format
 
-    n_slots = 4
-    base_prod = 1
+    n_slots = 5
+    base_prod = 1.5
     full_qual_config = [(0, n_slots)] * (NUM_TIERS - 1) + [(n_slots, 0)]
     full_prod_config = [(n_slots, 0)] * NUM_TIERS
 
     # Compact AR loop
     output_flows = assembler_recycler_loop(
         input_vector=100,
-        assembler_modules_config=full_prod_config,
-        product_quality_to_keep=NUM_TIERS - 1,
+        assembler_modules_config=full_qual_config,
+        product_quality_to_keep=NUM_TIERS,
         ingredient_quality_to_keep=None,
         base_prod_bonus=base_prod,
         recipe_ratio=1,  # NB: ratio of products:ingredients in the recipe
         prod_module_bonus=BEST_PROD_MODULE,
         qual_module_bonus=BEST_QUAL_MODULE,
-        speed_assemblers=[1, 1, 1, 1, 1],
-        speed_recycler=0.4,
-        recipe_time=2,
-        num_assemblers=[1, 1, 1, 1, 1],
-        num_recyclers=6,
-        verbose=False,
+        speed_assemblers=[3.2, 3.2, 3.2, 3.2, 3.2],  # rare EM plants
+        speed_recycler=1,  # legendary recyclers
+        recipe_time=10,
+        num_assemblers=[4, 2, 2, 1, 1],
+        num_recyclers=3,
+        verbose=True,
     )
     print("## Cumulative output flows:\n", output_flows, "\n")
 
-    output = SystemOutput.ITEMS
-    strategy = ModuleStrategy.OPTIMIZE
-
-    eff = assembler_recycler_efficiency(
-        n_slots,
-        base_prod,
-        output,
-        strategy,
-        target_tier=4,  # targeting epic products
-        prod_mod_bonus=BEST_PROD_MODULE,
-        qual_mod_bonus=BEST_QUAL_MODULE,
-    )
+    # output = SystemOutput.ITEMS
+    # strategy = ModuleStrategy.OPTIMIZE
+    #
+    # eff = assembler_recycler_efficiency(
+    #     n_slots,
+    #     base_prod,
+    #     output,
+    #     strategy,
+    #     target_tier=5,  # targeting legendary products
+    #     prod_mod_bonus=BEST_PROD_MODULE,
+    #     qual_mod_bonus=BEST_QUAL_MODULE,
+    # )
