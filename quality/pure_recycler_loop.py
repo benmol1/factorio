@@ -168,7 +168,7 @@ if __name__ == "__main__":
 
     q = 4 * 0.062
 
-    # production flows with 550 tier-1 inputs per second
+    # recycler loop for biter eggs
     print(recycler_loop(input_vector=16,
                         quality_chance=q,
                         recipe_time=2,
