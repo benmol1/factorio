@@ -84,7 +84,7 @@ def recycler_loop(
         crafting_time.append(ct_this_iteration)
         result_flows.append(result_flows[-1] @ transition_matrix)
 
-        if sum(abs(result_flows[-2] - result_flows[-1])) < 1e-2:
+        if sum(abs(result_flows[-2] - result_flows[-1])) < 1e-6:
             # There's nothing left in the system
             break
 
@@ -164,20 +164,26 @@ if __name__ == "__main__":
     pd.set_option("display.max_columns", 12)
     pd.set_option("display.max_rows", 20)
     pd.set_option("colheader_justify", "right")
-    pd.options.display.float_format = "{:.1f}".format
+    pd.options.display.float_format = "{:.2f}".format
 
     q = 4 * 0.062
 
     # recycler loop for biter eggs
-    print(recycler_loop(input_vector=16,
-                        quality_chance=q,
-                        recipe_time=2,
-                        num_recyclers=4,
-                        speed_recycler=1,  # legendary recyclers
-                        verbose=True))
+    biter_eggs = recycler_loop(input_vector=32,
+                               quality_chance=q,
+                               recipe_time=2,
+                               num_recyclers=8,
+                               speed_recycler=1,  # legendary recyclers
+                               verbose=True)
 
+    print("## Flow per second:")
+    print(biter_eggs)
+
+    print("## Flow per minute:")
+    print(biter_eggs * 60)
+
+    print("## Efficiency:")
     efficiency_output = 1 / recycler_loop(1, q, verbose=False)[4]
-
     print(efficiency_output)
 
     # # Define two ranges for x and y
