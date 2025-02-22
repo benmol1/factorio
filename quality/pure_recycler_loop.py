@@ -118,8 +118,8 @@ if __name__ == "__main__":
     pd.set_option("colheader_justify", "right")
     pd.options.display.float_format = "{:.1f}".format
 
-    q = 2 * 0.047
-    p = 0.8
+    q = 4 * 0.062
+    p = 0.25
 
     # crusher loop with epic quality modules
     print(recycler_matrix(quality_chance=q, production_ratio=p))
@@ -127,12 +127,9 @@ if __name__ == "__main__":
     # production flows with 550 tier-1 inputs per second
     print(recycler_loop(input_vector=100, quality_chance=q, production_ratio=p, verbose=True))
 
-    # internal flows relative to the epic flows
-    output = recycler_loop(1, q, production_ratio=0.8) / recycler_loop(1, q, production_ratio=0.8)[3]
-    print(output)
+    efficiency_output = 1 / recycler_loop(1, q, production_ratio=0.25)[4]
 
-    # quality_range = np.arange(0.01, 0.13, 0.01)
-    # efficiency_output = [1 / recycler_loop(1, q, production_ratio=0.8)[4] for q in quality_range]
+    print(efficiency_output)
 
     # # Define two ranges for x and y
     # x_values = quality_range

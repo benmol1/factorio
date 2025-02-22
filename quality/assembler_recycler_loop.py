@@ -379,7 +379,7 @@ def efficiency_table():
 if __name__ == "__main__":
 
     np.set_printoptions(precision=2, suppress=True, linewidth=1000)
-    pd.set_option("display.max_columns", 12)
+    pd.set_option("display.max_columns", 14)
     pd.set_option("display.max_rows", 20)
     pd.set_option("colheader_justify", "right")
     pd.options.display.float_format = "{:.1f}".format
@@ -391,32 +391,32 @@ if __name__ == "__main__":
 
     # Compact AR loop
     output_flows = assembler_recycler_loop(
-        input_vector=100,
+        input_vector=4,
         assembler_modules_config=full_qual_config,
         product_quality_to_keep=NUM_TIERS,
         ingredient_quality_to_keep=None,
         base_prod_bonus=base_prod,
         recipe_ratio=1,  # NB: ratio of products:ingredients in the recipe
-        prod_module_bonus=BEST_PROD_MODULE,
+        prod_module_bonus=0,
         qual_module_bonus=BEST_QUAL_MODULE,
-        speed_assemblers=[3.2, 3.2, 3.2, 3.2, 3.2],  # rare EM plants
+        speed_assemblers=[5, 5, 5, 5, 5],  # legendary EM plants
         speed_recycler=1,  # legendary recyclers
-        recipe_time=10,
+        recipe_time=60,
         num_assemblers=[4, 2, 2, 1, 1],
-        num_recyclers=3,
+        num_recyclers=8,
         verbose=True,
     )
     print("## Cumulative output flows:\n", output_flows, "\n")
 
-    # output = SystemOutput.ITEMS
-    # strategy = ModuleStrategy.OPTIMIZE
-    #
+    output = SystemOutput.ITEMS
+    strategy = ModuleStrategy.OPTIMIZE
+
     # eff = assembler_recycler_efficiency(
     #     n_slots,
     #     base_prod,
     #     output,
     #     strategy,
     #     target_tier=5,  # targeting legendary products
-    #     prod_mod_bonus=BEST_PROD_MODULE,
+    #     prod_mod_bonus=0,
     #     qual_mod_bonus=BEST_QUAL_MODULE,
     # )
