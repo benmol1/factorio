@@ -5,6 +5,7 @@ from typing import Union
 import matplotlib.pyplot as plt
 import pandas as pd
 
+NUM_TIERS = 5
 
 @lru_cache()
 def recycler_matrix(quality_chance: float, quality_to_keep: int = 5, production_ratio: float = 0.25) -> np.ndarray:
@@ -35,6 +36,10 @@ def recycler_loop(
     quality_chance: float,
     quality_to_keep: int = 5,
     production_ratio: float = 0.25,
+    speed_recycler: float = 0.4,
+    num_recyclers: int = 1,
+    recipe_time: float = 1,
+    recipe_ratio: float = 1,
     verbose: bool = False,
 ) -> np.ndarray:
     """Returns a vector with values for each quality level that mean different things,
@@ -55,38 +60,81 @@ def recycler_loop(
     if type(input_vector) in (float, int):
         input_vector = np.array([input_vector, 0, 0, 0, 0])
 
-    result_flows = [input_vector]
-    while True:
-        result_flows.append(result_flows[-1] @ recycler_matrix(quality_chance, quality_to_keep, production_ratio))
+    transition_matrix = recycler_matrix(quality_chance, quality_to_keep, production_ratio)
 
-        if sum(result_flows[-2] - result_flows[-1]) < 1e-10:
+    crafting_time_vector = create_crafting_time_vector(
+        speed_recycler, num_recyclers, recipe_time
+    )
+
+    if verbose:
+        print("## Transition matrix:\n", transition_matrix)
+        print("## Crafting time vector:\n", crafting_time_vector)
+
+    # Initialise loop variable and output arrays
+    ii = 0
+    result_flows = [input_vector]
+    crafting_time = [[0, 0, False]]
+
+    while True:
+        ii += 1
+        ct_this_iteration = compute_crafting_time(
+            result_flows[-1], crafting_time[-1], recipe_ratio, crafting_time_vector
+        )
+
+        crafting_time.append(ct_this_iteration)
+        result_flows.append(result_flows[-1] @ transition_matrix)
+
+        if sum(abs(result_flows[-2] - result_flows[-1])) < 1e-2:
             # There's nothing left in the system
             break
 
     # Create the output dataframe
     col_headers = ["P1", "P2", "P3", "P4", "P5"]
     output_df = pd.DataFrame(data=result_flows, columns=col_headers)
+    crafting_time_df = pd.DataFrame(data=crafting_time, columns=["Crafting time", "Max time index", "Bottleneck"])
+    output_df = output_df.join(crafting_time_df)
 
     if verbose:
         print("## Iterations:")
         print(output_df)
 
+        if sum(output_df["Bottleneck"] > 0):
+            print(output_df[output_df["Bottleneck"] == True])
+            output_df.to_csv("output_df.csv")
+
     return sum(result_flows)
 
 
-def bmatrix(a):  # https://stackoverflow.com/questions/17129290/numpy-2d-and-1d-array-to-latex-bmatrix
-    """Returns a LaTeX bmatrix
+def create_crafting_time_vector(speed_recycler: float = 0.4,  # the speed of a normal recycler with 4x quality modules
+                                num_recyclers: int = 1,
+                                recipe_time: float = 1) -> np.ndarray:
 
-    :a: numpy array
-    :returns: LaTeX bmatrix as a string
-    """
-    if len(a.shape) > 2:
-        raise ValueError("bmatrix can at most display two dimensions")
-    lines = str(a).replace("[", "").replace("]", "").splitlines()
-    rv = [r"\begin{bmatrix}"]
-    rv += ["  " + " & ".join(l.split()) + r"\\" for l in lines]
-    rv += [r"\end{bmatrix}"]
-    return "\n".join(rv)
+    res = [recipe_time / (16 * speed_recycler)] * NUM_TIERS
+    res = np.array(res) / num_recyclers
+
+    return np.array(res)
+
+
+def compute_crafting_time(
+    input_flows: np.ndarray, prev_crafting_time: list, recipe_ratio: float, ct_vector: np.ndarray
+) -> list:
+
+    ct = 0
+
+    # The recyclers are in series, so the total crafting time is relevant
+    recycler_crafting_time = np.dot(input_flows, ct_vector)
+    ct += recycler_crafting_time
+
+    # This is a pure recycler loop, so the recyclers must always be the most time-consuming component of each iteration
+    max_time_index = NUM_TIERS + 1
+
+    # Compare the crafting time of this iteration to the previous one; if the crafting time here is greater then
+    # report the bottleneck
+    bottleneck = False
+    if (prev_crafting_time[0] > 0) and (ct > 1) and (ct - prev_crafting_time[0] > 0.1):
+        bottleneck = True
+
+    return [ct, max_time_index, bottleneck]
 
 
 def normal_to_legendary_ratio():
@@ -119,15 +167,16 @@ if __name__ == "__main__":
     pd.options.display.float_format = "{:.1f}".format
 
     q = 4 * 0.062
-    p = 0.25
-
-    # crusher loop with epic quality modules
-    print(recycler_matrix(quality_chance=q, production_ratio=p))
 
     # production flows with 550 tier-1 inputs per second
-    print(recycler_loop(input_vector=100, quality_chance=q, production_ratio=p, verbose=True))
+    print(recycler_loop(input_vector=16,
+                        quality_chance=q,
+                        recipe_time=2,
+                        num_recyclers=4,
+                        speed_recycler=1,  # legendary recyclers
+                        verbose=True))
 
-    efficiency_output = 1 / recycler_loop(1, q, production_ratio=0.25)[4]
+    efficiency_output = 1 / recycler_loop(1, q, verbose=False)[4]
 
     print(efficiency_output)
 
