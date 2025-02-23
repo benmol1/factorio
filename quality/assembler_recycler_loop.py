@@ -386,21 +386,35 @@ def get_production_rate(input_vector: np.ndarray,
 
     The game's internal production tracker only captures item-created and item-destroyed events. Therefore when an item
     is recycled into itself this doesn't show as either. This function specifically computes the rate at which items are
-    produced, as opposed to the total flows - this is directly comparable with the game's production statistics panel
+    produced, as opposed to the total flows - this is directly comparable with the game's production statistics panel.
+
+    For the AR loop this is equal the total flows we've already calculated, since every step in the
+    process is either an assembly step (ingredient -> product) or a recycling step (product -> ingredient).
+    Therefore this function is redundant for the AR loop and should never be used :)
 
     """
 
-    # in order to provide the input_vector, it must first be produced somewhere
+    # In order to provide the input_vector, it must first be produced somewhere
     production_rate = input_vector
 
-    # For Tiers > normal, the only way to produce an item is to upcycle its equivalents from the tiers below.
-    # These up-cycling flows are given by multiplying total outputs flows per tier by the relevant cell of the
-    # transition matrix
-    for ii in range(1, NUM_TIERS):
+    # Ingredients of a given tier (excepting the input vector) are produced by recycling a product of
+    # equal or lower tier. So the production rate of ingredients is given by cross-multiplying the product flows
+    # with the relevant product->ingredient cell(s) of the transition matrix
+
+    for ii in range(0, NUM_TIERS):
         prod_rate = 0
-        for jj in range(ii):
-            prod_rate += output_flows[jj] * transition_matrix[jj][ii]
+        for jj in range(ii+1):
+            prod_rate += output_flows[jj + NUM_TIERS] * transition_matrix[jj + NUM_TIERS][ii]
         production_rate[ii] += prod_rate
+
+    # Products of a given tier are produced by assembling ingredients of equal or lower tier.
+    # So the production rate of products is given by cross-multiplying the ingredient flows
+    # with the relevant ingredient->product cell(s) of the transition matrix
+    for ii in range(0, NUM_TIERS):
+        prod_rate = 0
+        for jj in range(ii+1):
+            prod_rate += output_flows[jj] * transition_matrix[jj][ii + NUM_TIERS]
+        production_rate[ii + NUM_TIERS] += prod_rate
 
     return production_rate
 
@@ -409,16 +423,16 @@ if __name__ == "__main__":
 
     np.set_printoptions(precision=2, suppress=True, linewidth=1000)
     pd.set_option("display.max_columns", 14)
-    pd.set_option("display.max_rows", 20)
+    pd.set_option("display.max_rows", 10)
     pd.set_option("colheader_justify", "right")
-    pd.options.display.float_format = "{:.1f}".format
+    pd.options.display.float_format = "{:.3f}".format
 
     n_slots = 5
     base_prod = 1.5
     full_qual_config = [(0, n_slots)] * (NUM_TIERS - 1) + [(n_slots, 0)]
     full_prod_config = [(n_slots, 0)] * NUM_TIERS
 
-    input_vector = np.array([4.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+    input_vector = np.array([0.25, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
 
     # Compact AR loop
     prod_module_results = assembler_recycler_loop(
@@ -430,11 +444,11 @@ if __name__ == "__main__":
         recipe_ratio=1,  # NB: ratio of products:ingredients in the recipe
         prod_module_bonus=0,
         qual_module_bonus=BEST_QUAL_MODULE,
-        speed_assemblers=[5, 5, 5, 5, 5],  # legendary EM plants
+        speed_assemblers=[3.75, 3.75, 3.75, 3.75, 3.75],  # legendary EM plants, each with 5x qual modules
         speed_recycler=1,  # legendary recyclers
         recipe_time=60,
-        num_assemblers=[4, 2, 2, 1, 1],
-        num_recyclers=8,
+        num_assemblers=[4, 4, 2, 1, 1],
+        num_recyclers=4,
         verbose=True,
     )
 
@@ -445,8 +459,7 @@ if __name__ == "__main__":
     print("## Flow per minute:")
     print(flows * 60)
 
-    # print("## Production rates:")
-    # print(get_production_rate(input_vector, flows, transition_matrix) * 60)
+    print("## Legendary production rate per hour: %.1f" % (flows[9] * 3600))
 
     print("## Total crafting time: %.2f seconds" % total_crafting_time)
 

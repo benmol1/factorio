@@ -189,7 +189,7 @@ def get_production_rate(input_vector: np.ndarray,
 
 
 if __name__ == "__main__":
-    np.set_printoptions(precision=2, suppress=True, linewidth=1000)
+    np.set_printoptions(precision=3, suppress=True, linewidth=1000)
     pd.set_option("display.max_columns", 12)
     pd.set_option("display.max_rows", 20)
     pd.set_option("colheader_justify", "right")
@@ -214,7 +214,10 @@ if __name__ == "__main__":
     print("## Flow per minute:")
     print(flows * 60)
 
-    print("## Production rates:")
-    print(get_production_rate(input_vector, flows, transition_matrix) * 60)
+    production_rate = get_production_rate(input_vector, flows, transition_matrix)
+
+    print("## Production rates per minute:")
+    print(production_rate * 60)
+    print("## Legendary production rate per hour: %.1f" % (production_rate[4] * 3600))
 
     print("## Total crafting time: %.2f seconds" % total_crafting_time)
