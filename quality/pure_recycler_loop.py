@@ -41,7 +41,7 @@ def recycler_loop(
     recipe_time: float = 1,
     recipe_ratio: float = 1,
     verbose: bool = False,
-) -> np.ndarray:
+) -> (np.ndarray, np.ndarray):
     """Returns a vector with values for each quality level that mean different things,
     depending on whether that quality is kept or recycled:
         - If the quality is kept: the value is the production rate of items of that quality level.
@@ -102,7 +102,7 @@ def recycler_loop(
             print(output_df[output_df["Bottleneck"] == True])
             output_df.to_csv("output_df.csv")
 
-    return sum(result_flows)
+    return sum(result_flows), transition_matrix
 
 
 def create_crafting_time_vector(speed_recycler: float = 0.4,  # the speed of a normal recycler with 4x quality modules
@@ -159,6 +159,33 @@ def efficiency_data():
     print(f"{legendary=}")
 
 
+def get_production_rate(input_vector: np.ndarray,
+                        output_flows: np.ndarray,
+                        transition_matrix: np.ndarray) -> np.ndarray:
+    """
+    Computes the production rate at each quality level.
+
+    The game's internal production tracker only captures item-created and item-destroyed events. Therefore when an item
+    is recycled into itself this doesn't show as either. This function specifically computes the rate at which items are
+    produced, as opposed to the total flows - this is directly comparable with the game's production statistics panel
+
+    """
+
+    # in order to provide the input_vector, it must first be produced somewhere
+    production_rate = input_vector
+
+    # For Tiers > normal, the only way to produce an item is to upcycle its equivalents from the tiers below.
+    # These up-cycling flows are given by multiplying total outputs flows per tier by the relevant cell of the
+    # transition matrix
+    for ii in range(1, NUM_TIERS):
+        prod_rate = 0
+        for jj in range(ii):
+            prod_rate += output_flows[jj] * transition_matrix[jj][ii]
+        production_rate[ii] += prod_rate
+
+    return production_rate
+
+
 if __name__ == "__main__":
     np.set_printoptions(precision=2, suppress=True, linewidth=1000)
     pd.set_option("display.max_columns", 12)
@@ -168,40 +195,27 @@ if __name__ == "__main__":
 
     q = 4 * 0.062
 
-    # recycler loop for biter eggs
-    biter_eggs = recycler_loop(input_vector=32,
-                               quality_chance=q,
-                               recipe_time=2,
-                               num_recyclers=8,
-                               speed_recycler=1,  # legendary recyclers
-                               verbose=True)
+    input_vector = np.array([1920.0, 0.0, 0.0, 0.0, 0.0])
 
-    print("## Flow per second:")
-    print(biter_eggs)
+    # recycler loop for biter eggs
+    biter_eggs, transition_matrix = recycler_loop(input_vector=input_vector,
+                                                  quality_chance=q,
+                                                  recipe_time=2,
+                                                  num_recyclers=8,
+                                                  speed_recycler=1,  # legendary recyclers
+                                                  verbose=True)
 
     print("## Flow per minute:")
-    print(biter_eggs * 60)
+    print(biter_eggs)
 
-    print("## Efficiency:")
-    efficiency_output = 1 / recycler_loop(1, q, verbose=False)[4]
-    print(efficiency_output)
+    print("## Production rates:")
+    print(get_production_rate(input_vector, biter_eggs, transition_matrix))
 
-    # # Define two ranges for x and y
-    # x_values = quality_range
-    # y_values = efficiency_output
+    # print("## Flow per minute:")
+    # print(biter_eggs * 60)
 
-    # # Create scatter plot
-    # plt.plot(x_values, y_values, color="blue")
-    # plt.yscale("log")
+    # print("## Efficiency:")
+    # efficiency_output = 1 / recycler_loop(1, q, verbose=False)[4]
+    # print(efficiency_output)
 
-    # # Labels and title
-    # plt.xlabel("Quality chance")
-    # plt.ylabel("Efficiency")
-    # plt.title("Efficiency of crusher loop, by quality chance")
-    # plt.grid(True, which="both", linestyle="--", linewidth=0.5)
 
-    # # Show legend
-    # plt.legend()
-
-    # # Display plot
-    # plt.show()
