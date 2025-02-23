@@ -8,7 +8,7 @@ from enum import Enum
 from quality import create_production_matrix
 
 NUM_TIERS = 5
-BEST_PROD_MODULE = 0.19  # [0.100, 0.130, 0.160, 0.190, 0.250]
+BEST_PROD_MODULE = 0.250  # [0.100, 0.130, 0.160, 0.190, 0.250]
 BEST_QUAL_MODULE = 0.062  # [0.025, 0.032, 0.040, 0.047, 0.062]
 
 
@@ -215,7 +215,8 @@ def assembler_recycler_loop(
     # Initialise loop variable and output arrays
     ii = 0
     result_flows = [input_vector]
-    crafting_time = [[0, 0, False]]
+    crafting_time = [[0.0, 0, False]]
+    total_crafting_time = 0.0
 
     while True:
         ii += 1
@@ -223,6 +224,7 @@ def assembler_recycler_loop(
             result_flows[-1], crafting_time[-1], recipe_ratio, crafting_time_vector
         )
 
+        total_crafting_time += ct_this_iteration[0]
         crafting_time.append(ct_this_iteration)
         result_flows.append(result_flows[-1] @ transition_matrix)
 
@@ -244,7 +246,7 @@ def assembler_recycler_loop(
             print(output_df[output_df["Bottleneck"] == True])
             output_df.to_csv("output_df.csv")
 
-    return sum(result_flows)
+    return sum(result_flows), transition_matrix, total_crafting_time
 
 
 def get_config_string(config: List[Tuple[int, int]]):
@@ -376,6 +378,33 @@ def efficiency_table():
     print(pd.DataFrame(table).T.to_string())
 
 
+def get_production_rate(input_vector: np.ndarray,
+                        output_flows: np.ndarray,
+                        transition_matrix: np.ndarray) -> np.ndarray:
+    """
+    Computes the production rate at each quality level.
+
+    The game's internal production tracker only captures item-created and item-destroyed events. Therefore when an item
+    is recycled into itself this doesn't show as either. This function specifically computes the rate at which items are
+    produced, as opposed to the total flows - this is directly comparable with the game's production statistics panel
+
+    """
+
+    # in order to provide the input_vector, it must first be produced somewhere
+    production_rate = input_vector
+
+    # For Tiers > normal, the only way to produce an item is to upcycle its equivalents from the tiers below.
+    # These up-cycling flows are given by multiplying total outputs flows per tier by the relevant cell of the
+    # transition matrix
+    for ii in range(1, NUM_TIERS):
+        prod_rate = 0
+        for jj in range(ii):
+            prod_rate += output_flows[jj] * transition_matrix[jj][ii]
+        production_rate[ii] += prod_rate
+
+    return production_rate
+
+
 if __name__ == "__main__":
 
     np.set_printoptions(precision=2, suppress=True, linewidth=1000)
@@ -389,9 +418,11 @@ if __name__ == "__main__":
     full_qual_config = [(0, n_slots)] * (NUM_TIERS - 1) + [(n_slots, 0)]
     full_prod_config = [(n_slots, 0)] * NUM_TIERS
 
+    input_vector = np.array([4.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+
     # Compact AR loop
-    output_flows = assembler_recycler_loop(
-        input_vector=4,
+    prod_module_results = assembler_recycler_loop(
+        input_vector=input_vector,
         assembler_modules_config=full_qual_config,
         product_quality_to_keep=NUM_TIERS,
         ingredient_quality_to_keep=None,
@@ -406,10 +437,23 @@ if __name__ == "__main__":
         num_recyclers=8,
         verbose=True,
     )
-    print("## Cumulative output flows:\n", output_flows, "\n")
 
-    output = SystemOutput.ITEMS
-    strategy = ModuleStrategy.OPTIMIZE
+    flows = prod_module_results[0]
+    transition_matrix = prod_module_results[1]
+    total_crafting_time = prod_module_results[2]
+
+    print("## Flow per minute:")
+    print(flows * 60)
+
+    # print("## Production rates:")
+    # print(get_production_rate(input_vector, flows, transition_matrix) * 60)
+
+    print("## Total crafting time: %.2f seconds" % total_crafting_time)
+
+
+
+    # output = SystemOutput.ITEMS
+    # strategy = ModuleStrategy.OPTIMIZE
 
     # eff = assembler_recycler_efficiency(
     #     n_slots,

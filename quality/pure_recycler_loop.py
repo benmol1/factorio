@@ -207,14 +207,14 @@ if __name__ == "__main__":
                                                   speed_recycler=1,  # legendary recyclers
                                                   verbose=True)
 
-    be_flows = biter_egg_results[0]
+    flows = biter_egg_results[0]
     transition_matrix = biter_egg_results[1]
     total_crafting_time = biter_egg_results[2]
 
     print("## Flow per minute:")
-    print(be_flows * 60)
+    print(flows * 60)
 
     print("## Production rates:")
-    print(get_production_rate(input_vector, be_flows, transition_matrix) * 60)
+    print(get_production_rate(input_vector, flows, transition_matrix) * 60)
 
     print("## Total crafting time: %.2f seconds" % total_crafting_time)
