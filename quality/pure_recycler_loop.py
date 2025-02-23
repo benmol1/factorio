@@ -73,7 +73,8 @@ def recycler_loop(
     # Initialise loop variable and output arrays
     ii = 0
     result_flows = [input_vector]
-    crafting_time = [[0, 0, False]]
+    crafting_time = [[0.0, 0, False]]
+    total_crafting_time = 0
 
     while True:
         ii += 1
@@ -81,6 +82,7 @@ def recycler_loop(
             result_flows[-1], crafting_time[-1], recipe_ratio, crafting_time_vector
         )
 
+        total_crafting_time += ct_this_iteration[0]
         crafting_time.append(ct_this_iteration)
         result_flows.append(result_flows[-1] @ transition_matrix)
 
@@ -102,7 +104,7 @@ def recycler_loop(
             print(output_df[output_df["Bottleneck"] == True])
             output_df.to_csv("output_df.csv")
 
-    return sum(result_flows), transition_matrix
+    return sum(result_flows), transition_matrix, total_crafting_time
 
 
 def create_crafting_time_vector(speed_recycler: float = 0.4,  # the speed of a normal recycler with 4x quality modules
@@ -195,27 +197,24 @@ if __name__ == "__main__":
 
     q = 4 * 0.062
 
-    input_vector = np.array([1920.0, 0.0, 0.0, 0.0, 0.0])
+    input_vector = np.array([32.0, 0.0, 0.0, 0.0, 0.0])
 
     # recycler loop for biter eggs
-    biter_eggs, transition_matrix = recycler_loop(input_vector=input_vector,
+    biter_egg_results = recycler_loop(input_vector=input_vector,
                                                   quality_chance=q,
-                                                  recipe_time=2,
-                                                  num_recyclers=8,
+                                                  recipe_time=10,
+                                                  num_recyclers=28,
                                                   speed_recycler=1,  # legendary recyclers
                                                   verbose=True)
 
+    be_flows = biter_egg_results[0]
+    transition_matrix = biter_egg_results[1]
+    total_crafting_time = biter_egg_results[2]
+
     print("## Flow per minute:")
-    print(biter_eggs)
+    print(be_flows * 60)
 
     print("## Production rates:")
-    print(get_production_rate(input_vector, biter_eggs, transition_matrix))
+    print(get_production_rate(input_vector, be_flows, transition_matrix) * 60)
 
-    # print("## Flow per minute:")
-    # print(biter_eggs * 60)
-
-    # print("## Efficiency:")
-    # efficiency_output = 1 / recycler_loop(1, q, verbose=False)[4]
-    # print(efficiency_output)
-
-
+    print("## Total crafting time: %.2f seconds" % total_crafting_time)
