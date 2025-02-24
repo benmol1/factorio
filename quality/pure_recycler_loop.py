@@ -238,7 +238,7 @@ if __name__ == "__main__":
         input_vector=input_vector,
         quality_chance=q,
         recipe_time=2,
-        num_recyclers=1,  # np.array([72, 24, 9, 3, 3])
+        num_recyclers=np.array([72, 24, 9, 3, 3]),
         speed_recycler=2.25,  # legendary crushers, each with 2x qual modules
         is_asteroid_crusher=True,
         verbose=True,
