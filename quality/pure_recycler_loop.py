@@ -7,6 +7,7 @@ import pandas as pd
 
 NUM_TIERS = 5
 
+
 @lru_cache()
 def recycler_matrix(quality_chance: float, quality_to_keep: int = 5, production_ratio: float = 0.25) -> np.ndarray:
     """Returns a matrix of a recycler with quality chance `quality_chance`
@@ -62,9 +63,7 @@ def recycler_loop(
 
     transition_matrix = recycler_matrix(quality_chance, quality_to_keep, production_ratio)
 
-    crafting_time_vector = create_crafting_time_vector(
-        speed_recycler, num_recyclers, recipe_time
-    )
+    crafting_time_vector = create_crafting_time_vector(speed_recycler, num_recyclers, recipe_time)
 
     if verbose:
         print("## Transition matrix:\n", transition_matrix)
@@ -107,9 +106,11 @@ def recycler_loop(
     return sum(result_flows), transition_matrix, total_crafting_time
 
 
-def create_crafting_time_vector(speed_recycler: float = 0.4,  # the speed of a normal recycler with 4x quality modules
-                                num_recyclers: int = 1,
-                                recipe_time: float = 1) -> np.ndarray:
+def create_crafting_time_vector(
+    speed_recycler: float = 0.4,  # the speed of a normal recycler with 4x quality modules
+    num_recyclers: int = 1,
+    recipe_time: float = 1,
+) -> np.ndarray:
 
     res = [recipe_time / (16 * speed_recycler)] * NUM_TIERS
     res = np.array(res) / num_recyclers
@@ -161,9 +162,9 @@ def efficiency_data():
     print(f"{legendary=}")
 
 
-def get_production_rate(input_vector: np.ndarray,
-                        output_flows: np.ndarray,
-                        transition_matrix: np.ndarray) -> np.ndarray:
+def get_production_rate(
+    input_vector: np.ndarray, output_flows: np.ndarray, transition_matrix: np.ndarray
+) -> np.ndarray:
     """
     Computes the production rate at each quality level.
 
@@ -189,27 +190,43 @@ def get_production_rate(input_vector: np.ndarray,
 
 
 if __name__ == "__main__":
-    np.set_printoptions(precision=3, suppress=True, linewidth=1000)
+    np.set_printoptions(precision=2, suppress=True, linewidth=1000)
     pd.set_option("display.max_columns", 12)
     pd.set_option("display.max_rows", 20)
     pd.set_option("colheader_justify", "right")
     pd.options.display.float_format = "{:.2f}".format
 
-    q = 4 * 0.062
-
-    input_vector = np.array([32.0, 0.0, 0.0, 0.0, 0.0])
-
     # recycler loop for biter eggs
-    biter_egg_results = recycler_loop(input_vector=input_vector,
-                                                  quality_chance=q,
-                                                  recipe_time=10,
-                                                  num_recyclers=28,
-                                                  speed_recycler=1,  # legendary recyclers
-                                                  verbose=True)
+    # input_vector = np.array([32.0, 0.0, 0.0, 0.0, 0.0])
+    # q = 4 * 0.062
+    # results = recycler_loop(
+    #     input_vector=input_vector,
+    #     quality_chance=q,
+    #     recipe_time=10,
+    #     num_recyclers=28,
+    #     speed_recycler=1,  # legendary recyclers
+    #     verbose=True
+    # )
 
-    flows = biter_egg_results[0]
-    transition_matrix = biter_egg_results[1]
-    total_crafting_time = biter_egg_results[2]
+    # recycler loop for asteroids eggs
+    input_vector = np.array([3.0, 0.0, 0.0, 0.0, 0.0])
+    q = 2 * 0.062
+    results = recycler_loop(
+        input_vector=input_vector,
+        quality_chance=q,
+        production_ratio=0.8,
+        recipe_time=2,
+        num_recyclers=1,
+        speed_recycler=2.25,  # legendary crushers, each with 2x qual modules
+        verbose=True,
+    )
+
+    flows = results[0]
+    transition_matrix = results[1]
+    total_crafting_time = results[2]
+
+    print("## Flow per second:")
+    print(flows)
 
     print("## Flow per minute:")
     print(flows * 60)
@@ -221,3 +238,6 @@ if __name__ == "__main__":
     print("## Legendary production rate per hour: %.1f" % (production_rate[4] * 3600))
 
     print("## Total crafting time: %.2f seconds" % total_crafting_time)
+
+    print("## Suggested ratio of asteroid crushers at each tier:")
+    print(flows / flows[3] * 3)
