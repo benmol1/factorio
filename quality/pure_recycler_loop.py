@@ -232,13 +232,13 @@ if __name__ == "__main__":
     # )
 
     # recycler loop for asteroids eggs
-    input_vector = np.array([81.0, 0.0, 0.0, 0.0, 0.0])
+    input_vector = np.array([8.33, 0.0, 0.0, 0.0, 0.0])
     q = 2 * 0.062
     results = recycler_loop(
         input_vector=input_vector,
         quality_chance=q,
         recipe_time=2,
-        num_recyclers=np.array([72, 24, 9, 3, 3]),
+        num_recyclers=np.array([24, 8, 3, 1, 1]),
         speed_recycler=2.25,  # legendary crushers, each with 2x qual modules
         is_asteroid_crusher=True,
         verbose=True,
@@ -251,12 +251,12 @@ if __name__ == "__main__":
     print("## Flow per second:")
     print(flows)
 
-    print("## Flow per minute:")
+    print("## Flow per minute, per type:")
     print(flows * 60)
 
     production_rate = get_production_rate(input_vector, flows, transition_matrix, is_asteroid_crusher=True)
 
-    print("## Production rates per minute:")
+    print("## Production rates per minute, per type:")
     print(production_rate * 60)
     print("## Legendary production rate per hour: %.1f" % (production_rate[4] * 3600))
 
