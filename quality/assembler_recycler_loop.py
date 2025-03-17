@@ -8,7 +8,7 @@ from enum import Enum
 from quality import create_production_matrix
 
 NUM_TIERS = 5
-BEST_PROD_MODULE = 0.250  # [0.100, 0.130, 0.160, 0.190, 0.250]
+BEST_PROD_MODULE = 0.25  # [0.100, 0.130, 0.160, 0.190, 0.250]
 BEST_QUAL_MODULE = 0.062  # [0.025, 0.032, 0.040, 0.047, 0.062]
 
 
@@ -47,6 +47,15 @@ def create_crafting_time_vector(
     res = res / num_entities
 
     return np.array(res)
+
+
+def create_max_flow_vector(crafting_time_vector: np.ndarray, recipe_ratio: float) -> np.ndarray:
+
+    mf_vector = np.zeros_like(crafting_time_vector)
+    mf_vector = 1 / crafting_time_vector
+    mf_vector[:NUM_TIERS] = mf_vector[:NUM_TIERS] / recipe_ratio
+
+    return mf_vector
 
 
 def compute_crafting_time(
@@ -204,9 +213,12 @@ def assembler_recycler_loop(
         speed_assemblers, num_assemblers, speed_recycler, num_recyclers, recipe_time
     )
 
+    max_flow_vector = create_max_flow_vector(crafting_time_vector, recipe_ratio)
+
     if verbose:
         print("## Transition matrix:\n", transition_matrix)
         print("## Crafting time vector:\n", crafting_time_vector)
+        print("## Max flow vector:\n", max_flow_vector)
 
     # Handle the case where input_vector has just been given as a single scalar value
     if type(input_vector) in (float, int):
@@ -246,7 +258,7 @@ def assembler_recycler_loop(
             print(output_df[output_df["Bottleneck"] == True])
             output_df.to_csv("output_df.csv")
 
-    return sum(result_flows), transition_matrix, total_crafting_time
+    return sum(result_flows), transition_matrix, total_crafting_time, max_flow_vector
 
 
 def get_config_string(config: List[Tuple[int, int]]):
@@ -337,7 +349,7 @@ def assembler_recycler_efficiency(
                 prod_module_bonus=prod_mod_bonus,
                 qual_module_bonus=qual_mod_bonus,
             )
-            efficiency = float(output[result_index])
+            efficiency = float(output[0][result_index])
 
             if best_efficiency < efficiency:
                 best_config = config
@@ -427,69 +439,56 @@ if __name__ == "__main__":
     pd.set_option("colheader_justify", "right")
     pd.options.display.float_format = "{:.2f}".format
 
-    n_slots = 8
-    base_prod = 1.0
+    n_slots = 5
+    base_prod = 1.5
     full_qual_config = [(0, n_slots)] * (NUM_TIERS - 1) + [(n_slots, 0)]
     full_prod_config = [(n_slots, 0)] * NUM_TIERS
+    optimal_leg_config = [(n_slots - 1, 1)] * (NUM_TIERS - 1) + [(n_slots, 0)]
 
-    # # AR loop for Productivity Module 3s in Legendary EM plants
-    # input_vector = np.array([0.25, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
-    # prod_module_results = assembler_recycler_loop(
-    #     input_vector=input_vector,
-    #     assembler_modules_config=full_qual_config,
-    #     product_quality_to_keep=NUM_TIERS,
-    #     ingredient_quality_to_keep=None,
-    #     base_prod_bonus=base_prod,
-    #     recipe_ratio=1,  # NB: ratio of products:ingredients in the recipe
-    #     prod_module_bonus=0,
-    #     qual_module_bonus=BEST_QUAL_MODULE,
-    #     speed_assemblers=[3.75, 3.75, 3.75, 3.75, 3.75],  # legendary EM plants, each with 5x qual modules
-    #     speed_recycler=1,  # legendary recyclers
-    #     recipe_time=60,
-    #     num_assemblers=[4, 4, 2, 1, 1],
-    #     num_recyclers=4,
-    #     verbose=True,
-    # )
-
-    # AR loop for Promethean science in cryo plants
-    input_vector = np.array([1.6, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+    # AR loop for EM plants
+    input_vector = np.array([90.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
     prod_module_results = assembler_recycler_loop(
         input_vector=input_vector,
-        assembler_modules_config=full_prod_config,
-        product_quality_to_keep=NUM_TIERS,
-        ingredient_quality_to_keep=None,
+        assembler_modules_config=full_qual_config,
+        product_quality_to_keep=None,
+        ingredient_quality_to_keep=NUM_TIERS,
         base_prod_bonus=base_prod,
-        recipe_ratio=1,  # NB: ratio of products:ingredients in the recipe
+        recipe_ratio=(1 / 150),  # NB: ratio of products:ingredients in the recipe
         prod_module_bonus=BEST_PROD_MODULE,
         qual_module_bonus=BEST_QUAL_MODULE,
-        speed_assemblers=[2, 2, 2, 2, 2],  # EM plants, each with 5x qual modules + speed beacons
+        speed_assemblers=[3.75, 2.4, 2.4, 2.4, 3.2],  # EM Plants; leg for Tier 1, rare otherwise
         speed_recycler=1,  # legendary recyclers
-        recipe_time=5,
-        num_assemblers=[4, 4, 3, 3, 2],
-        num_recyclers=6,
+        recipe_time=10,
+        num_assemblers=[2, 1, 1, 1, 1],
+        num_recyclers=1,
         verbose=True,
     )
 
     flows = prod_module_results[0]
     transition_matrix = prod_module_results[1]
     total_crafting_time = prod_module_results[2]
+    max_flow_vector = prod_module_results[3]
 
-    print("## Flow per minute:")
+    flows_with_summed_recyclers = np.concatenate((flows[:NUM_TIERS], np.array([sum(flows[NUM_TIERS:])])))
+
+    print("## Flow per second:")
+    print(flows_with_summed_recyclers)
+    print("## Max flow per second:")
+    print(max_flow_vector[: NUM_TIERS + 1])
+    print("## Flows under max?")
+    print(flows_with_summed_recyclers < max_flow_vector[: NUM_TIERS + 1])
+
+    print("\n## Flow per minute:")
     print(flows * 60)
 
     print("## Legendary production rate per hour: %.1f" % (flows[9] * 3600))
 
-    print("## Total crafting time: %.2f seconds" % total_crafting_time)
-
-    # output = SystemOutput.ITEMS
-    # strategy = ModuleStrategy.OPTIMIZE
-
     # eff = assembler_recycler_efficiency(
     #     n_slots,
     #     base_prod,
-    #     output,
-    #     strategy,
-    #     target_tier=5,  # targeting legendary products
-    #     prod_mod_bonus=0,
+    #     system_output=SystemOutput.ITEMS,
+    #     module_strategy=ModuleStrategy.OPTIMIZE,
+    #     target_tier=NUM_TIERS,  # targeting legendary products
+    #     prod_mod_bonus=BEST_PROD_MODULE,
     #     qual_mod_bonus=BEST_QUAL_MODULE,
     # )

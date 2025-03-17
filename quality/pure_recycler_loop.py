@@ -231,16 +231,16 @@ if __name__ == "__main__":
     #     verbose=True,
     # )
 
-    # recycler loop for asteroids eggs
-    input_vector = np.array([8.33, 0.0, 0.0, 0.0, 0.0])
-    q = 2 * 0.062
+    # recycler loop for carbon-fibre mash
+    input_vector = np.array([27.07, 8.04, 0.8, 0.08, 0.01])
+    q = 4 * 0.062
     results = recycler_loop(
         input_vector=input_vector,
         quality_chance=q,
-        recipe_time=2,
-        num_recyclers=np.array([24, 8, 3, 1, 1]),
-        speed_recycler=2.25,  # legendary crushers, each with 2x qual modules
-        is_asteroid_crusher=True,
+        recipe_time=5,
+        num_recyclers=np.array([18, 18, 18, 18, 18]),
+        speed_recycler=1,  # legendary recyclers, each with 4x qual modules
+        is_asteroid_crusher=False,
         verbose=True,
     )
 
@@ -251,16 +251,13 @@ if __name__ == "__main__":
     print("## Flow per second:")
     print(flows)
 
-    print("## Flow per minute, per type:")
+    print("## Flow per minute:")
     print(flows * 60)
 
-    production_rate = get_production_rate(input_vector, flows, transition_matrix, is_asteroid_crusher=True)
+    production_rate = get_production_rate(input_vector, flows, transition_matrix, is_asteroid_crusher=False)
 
-    print("## Production rates per minute, per type:")
+    print("## Production rates per minute:")
     print(production_rate * 60)
     print("## Legendary production rate per hour: %.1f" % (production_rate[4] * 3600))
 
     print("## Total crafting time: %.2f seconds" % total_crafting_time)
-
-    print("## Suggested ratio of asteroid crushers at each tier:")
-    print(flows / flows[3] * 3)
