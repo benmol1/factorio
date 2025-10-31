@@ -124,7 +124,7 @@ def create_crafting_time_vector(
     res = np.array(res) / num_recyclers
 
     # If this is an asteroid crusher, re-multiply the crafting time by 16 because that discount
-    # only applies to recycling
+    # only applies to pure recycling
     if is_asteroid_crusher:
         res *= 16
 
@@ -195,8 +195,8 @@ def get_production_rate(
     # transition matrix.
     # For asteroid crushers this is not true, as equal-tier production events happen frequently.
     # Ignoring quality and the 0.8 productivity factor, 50% of asteroid reprocessing crafts return
-    # an equiv-tier product. So whilst we typically would ignore equiv-tier (=on-diagonal)
-    # transitions, for the asteroid crusher we apply a scalar of 0.5)
+    # an equiv-tier product (the other 50% of crafts return the same item back, so there's there's no item-created event).
+    # So whilst we typically would ignore equiv-tier (=on-diagonal) transitions, for the asteroid crusher we apply a scalar of 0.5)
     for ii in range(0, NUM_TIERS):
         prod_rate = 0
         for jj in range(ii + 1):
@@ -231,14 +231,14 @@ if __name__ == "__main__":
     #     verbose=True,
     # )
 
-    # recycler loop for carbon-fibre mash
+    # Recycler loop for carbon fiber. The input vector is 36/s of carbon fiber, but produced with 4x leg quality modules (aim)
     input_vector = np.array([27.07, 8.04, 0.8, 0.08, 0.01])
     q = 4 * 0.062
     results = recycler_loop(
         input_vector=input_vector,
         quality_chance=q,
         recipe_time=5,
-        num_recyclers=np.array([18, 18, 18, 18, 18]),
+        num_recyclers=16,
         speed_recycler=1,  # legendary recyclers, each with 4x qual modules
         is_asteroid_crusher=False,
         verbose=True,
