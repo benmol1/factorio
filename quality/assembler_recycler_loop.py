@@ -439,14 +439,14 @@ if __name__ == "__main__":
     pd.set_option("colheader_justify", "right")
     pd.options.display.float_format = "{:.2f}".format
 
-    n_slots = 5
-    base_prod = 1.5
+    n_slots = 4
+    base_prod = 1.0
     full_qual_config = [(0, n_slots)] * (NUM_TIERS - 1) + [(n_slots, 0)]
     full_prod_config = [(n_slots, 0)] * NUM_TIERS
     optimal_leg_config = [(n_slots - 1, 1)] * (NUM_TIERS - 1) + [(n_slots, 0)]
 
-    # AR loop for EM plants
-    input_vector = np.array([56.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+    # AR loop for producing legendary carbon fiber
+    input_vector = np.array([60, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
     prod_module_results = assembler_recycler_loop(
         input_vector=input_vector,
         assembler_modules_config=full_qual_config,
@@ -459,8 +459,8 @@ if __name__ == "__main__":
         speed_assemblers=[2.5, 2.5, 2.5, 2.5, 2.5],  # Assemblers with 4x qual
         speed_recycler=1,  # legendary recyclers
         recipe_time=10,
-        num_assemblers=[28, 8, 2, 1, 1],
-        num_recyclers=8,
+        num_assemblers=[28, 4, 1, 1, 1],
+        num_recyclers=6,
         verbose=True,
     )
 
