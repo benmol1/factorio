@@ -446,21 +446,21 @@ if __name__ == "__main__":
     optimal_leg_config = [(n_slots - 1, 1)] * (NUM_TIERS - 1) + [(n_slots, 0)]
 
     # AR loop for EM plants
-    input_vector = np.array([90.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+    input_vector = np.array([56.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
     prod_module_results = assembler_recycler_loop(
         input_vector=input_vector,
         assembler_modules_config=full_qual_config,
         product_quality_to_keep=None,
         ingredient_quality_to_keep=NUM_TIERS,
         base_prod_bonus=base_prod,
-        recipe_ratio=(1 / 150),  # NB: ratio of products:ingredients in the recipe
+        recipe_ratio=(1 / 10),  # NB: ratio of products:ingredients in the recipe
         prod_module_bonus=BEST_PROD_MODULE,
         qual_module_bonus=BEST_QUAL_MODULE,
-        speed_assemblers=[3.75, 2.4, 2.4, 2.4, 3.2],  # EM Plants; leg for Tier 1, rare otherwise
+        speed_assemblers=[2.5, 2.5, 2.5, 2.5, 2.5],  # Assemblers with 4x qual
         speed_recycler=1,  # legendary recyclers
         recipe_time=10,
-        num_assemblers=[2, 1, 1, 1, 1],
-        num_recyclers=1,
+        num_assemblers=[28, 8, 2, 1, 1],
+        num_recyclers=8,
         verbose=True,
     )
 
