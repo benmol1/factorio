@@ -219,28 +219,15 @@ if __name__ == "__main__":
     pd.set_option("colheader_justify", "right")
     pd.options.display.float_format = "{:.2f}".format
 
-    # recycler loop for biter eggs
-    # input_vector = np.array([32.0, 0.0, 0.0, 0.0, 0.0])
-    # q = 4 * 0.062
-    # results = recycler_loop(
-    #     input_vector=input_vector,
-    #     quality_chance=q,
-    #     recipe_time=10,
-    #     num_recyclers=28,
-    #     speed_recycler=1,  # legendary recyclers
-    #     verbose=True,
-    # )
-
-    # Recycler loop for carbon fiber. The input vector is 36/s of carbon fiber, but produced with 4x leg quality modules (aim)
-    input_vector = np.array([27.07, 8.04, 0.8, 0.08, 0.01])
+    # Recycler loop for biter eggs
+    input_vector = np.array([32.0, 0.0, 0.0, 0.0, 0.0])
     q = 4 * 0.062
     results = recycler_loop(
         input_vector=input_vector,
         quality_chance=q,
-        recipe_time=5,
-        num_recyclers=16,
-        speed_recycler=1,  # legendary recyclers, each with 4x qual modules
-        is_asteroid_crusher=False,
+        recipe_time=10,
+        num_recyclers=28,
+        speed_recycler=1,  # legendary recyclers
         verbose=True,
     )
 

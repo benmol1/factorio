@@ -79,13 +79,7 @@ def compute_crafting_time(
     else:
         max_time_index = NUM_TIERS + 1
 
-    # Compare the crafting time of this iteration to the previous one; if the crafting time here is greater then
-    # report the bottleneck
-    bottleneck = False
-    if (prev_crafting_time[0] > 0) and (ct - prev_crafting_time[0] > 1e-4):
-        bottleneck = True
-
-    return [ct, max_time_index, bottleneck]
+    return [ct, max_time_index]
 
 
 def create_crafting_time_matrix(
@@ -216,9 +210,9 @@ def assembler_recycler_loop(
     max_flow_vector = create_max_flow_vector(crafting_time_vector, recipe_ratio)
 
     if verbose:
-        print("## Transition matrix:\n", transition_matrix)
-        print("## Crafting time vector:\n", crafting_time_vector)
-        print("## Max flow vector:\n", max_flow_vector)
+        print("\n## Transition matrix:\n", transition_matrix)
+        print("\n## Crafting time vector:\n", crafting_time_vector)
+        print("\n## Max flow vector:\n", max_flow_vector)
 
     # Handle the case where input_vector has just been given as a single scalar value
     if type(input_vector) in (float, int):
@@ -227,7 +221,7 @@ def assembler_recycler_loop(
     # Initialise loop variable and output arrays
     ii = 0
     result_flows = [input_vector]
-    crafting_time = [[0.0, 0, False]]
+    crafting_time = [[0.0, 0]]
     total_crafting_time = 0.0
 
     while True:
@@ -247,16 +241,12 @@ def assembler_recycler_loop(
     # Create the output dataframe
     col_headers = ["I1", "I2", "I3", "I4", "I5", "P1", "P2", "P3", "P4", "P5"]
     output_df = pd.DataFrame(data=result_flows, columns=col_headers)
-    crafting_time_df = pd.DataFrame(data=crafting_time, columns=["Crafting time", "Max time index", "Bottleneck"])
+    crafting_time_df = pd.DataFrame(data=crafting_time, columns=["Crafting time", "Max time index"])
     output_df = output_df.join(crafting_time_df)
 
     if verbose:
-        print("## Iterations:")
+        print("\n## Iterations:")
         print(output_df.head(10))
-
-        if sum(output_df["Bottleneck"] > 0):
-            print(output_df[output_df["Bottleneck"] == True])
-            output_df.to_csv("output_df.csv")
 
     return sum(result_flows), transition_matrix, total_crafting_time, max_flow_vector
 
@@ -447,7 +437,7 @@ if __name__ == "__main__":
 
     # AR loop for producing legendary carbon fiber
     input_vector = np.array([60, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
-    prod_module_results = assembler_recycler_loop(
+    results = assembler_recycler_loop(
         input_vector=input_vector,
         assembler_modules_config=full_qual_config,
         product_quality_to_keep=None,
@@ -459,15 +449,15 @@ if __name__ == "__main__":
         speed_assemblers=[2.5, 2.5, 2.5, 2.5, 2.5],  # Assemblers with 4x qual
         speed_recycler=1,  # legendary recyclers
         recipe_time=10,
-        num_assemblers=[28, 4, 1, 1, 1],
-        num_recyclers=6,
+        num_assemblers=[26, 4, 1, 1, 1],
+        num_recyclers=4,
         verbose=True,
     )
 
-    flows = prod_module_results[0]
-    transition_matrix = prod_module_results[1]
-    total_crafting_time = prod_module_results[2]
-    max_flow_vector = prod_module_results[3]
+    flows = results[0]
+    transition_matrix = results[1]
+    total_crafting_time = results[2]
+    max_flow_vector = results[3]
 
     flows_with_summed_recyclers = np.concatenate((flows[:NUM_TIERS], np.array([sum(flows[NUM_TIERS:])])))
 
@@ -475,8 +465,19 @@ if __name__ == "__main__":
     print(flows_with_summed_recyclers)
     print("## Max flow per second:")
     print(max_flow_vector[: NUM_TIERS + 1])
-    print("## Flows under max?")
-    print(flows_with_summed_recyclers < max_flow_vector[: NUM_TIERS + 1])
+
+    flow_ratio = flows_with_summed_recyclers / max_flow_vector[: NUM_TIERS + 1]
+
+    print("\n## Flows over max:")
+    print(flow_ratio)
+
+    if np.any(flow_ratio > 1):
+        print("The following tiers need more machines:")
+        for ii in range(NUM_TIERS + 1):
+            if flow_ratio[ii] > 1:
+                print(ii + 1)
+
+    np.set_printoptions(precision=1, suppress=True, linewidth=1000)
 
     print("\n## Flow per minute:")
     print(flows * 60)
