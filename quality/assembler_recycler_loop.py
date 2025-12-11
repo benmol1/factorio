@@ -429,28 +429,28 @@ if __name__ == "__main__":
     pd.set_option("colheader_justify", "right")
     pd.options.display.float_format = "{:.2f}".format
 
-    n_slots = 5
-    base_prod = 1.5
+    n_slots = 4
+    base_prod = 1.0
     full_qual_config = [(0, n_slots)] * (NUM_TIERS - 1) + [(n_slots, 0)]
     full_prod_config = [(n_slots, 0)] * NUM_TIERS
     optimal_leg_config = [(n_slots - 1, 1)] * (NUM_TIERS - 1) + [(n_slots, 0)]
 
-    # AR loop for producing rare Quality Module 3s
-    input_vector = np.array([44.8, 0.0, 0.0, 0.0, 0.0, 0.0])
+    # AR loop for producing rare roboport mk2s
+    input_vector = np.array([2.5 / 1.21, 0.0, 0.0, 0.0, 0.0, 0.0])
     results = assembler_recycler_loop(
         input_vector=input_vector,
         assembler_modules_config=full_qual_config,
         product_quality_to_keep=NUM_TIERS,
         ingredient_quality_to_keep=None,
         base_prod_bonus=base_prod,
-        recipe_ratio=(1 / 4),  # NB: ratio of products:ingredients in the recipe
+        recipe_ratio=(1 / 50),  # NB: ratio of products:ingredients in the recipe
         prod_module_bonus=0,
         qual_module_bonus=BEST_QUAL_MODULE,
-        speed_assemblers=[1.5, 1.5, 1.5],  # EM plants with 5x qual modules
+        speed_assemblers=[1, 1, 1],  # Assembler3s with 4x qual modules
         speed_recycler=0.4,  # normal recyclers
-        recipe_time=60,
-        num_assemblers=[600, 100, 100],
-        num_recyclers=300,
+        recipe_time=20,
+        num_assemblers=[1, 1, 1],
+        num_recyclers=1,
         verbose=True,
     )
 
@@ -477,7 +477,7 @@ if __name__ == "__main__":
             if flow_ratio[ii] > 1:
                 print(ii + 1)
 
-    np.set_printoptions(precision=1, suppress=True, linewidth=1000)
+    np.set_printoptions(precision=2, suppress=True, linewidth=1000)
 
     print("\n## Flow per minute (to compare with the production statistics panel):")
     print(flows * 60)
