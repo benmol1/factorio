@@ -219,17 +219,29 @@ if __name__ == "__main__":
     pd.set_option("colheader_justify", "right")
     pd.options.display.float_format = "{:.2f}".format
 
-    # Recycler loop for biter eggs
-    input_vector = np.array([32.0, 0.0, 0.0, 0.0, 0.0])
+    # Recycler loop for tungsten ore
+    input_vector = np.array([45.0, 15.0, 0.0, 0.0, 0.0])
     q = 4 * 0.062
     results = recycler_loop(
         input_vector=input_vector,
         quality_chance=q,
-        recipe_time=10,
-        num_recyclers=28,
+        recipe_time=1,
+        num_recyclers=5,
         speed_recycler=1,  # legendary recyclers
         verbose=True,
     )
+
+    # Recycler loop for biter eggs
+    # input_vector = np.array([32.0, 0.0, 0.0, 0.0, 0.0])
+    # q = 4 * 0.062
+    # results = recycler_loop(
+    #     input_vector=input_vector,
+    #     quality_chance=q,
+    #     recipe_time=10,
+    #     num_recyclers=28,
+    #     speed_recycler=1,  # legendary recyclers
+    #     verbose=True,
+    # )
 
     flows = results[0]
     transition_matrix = results[1]

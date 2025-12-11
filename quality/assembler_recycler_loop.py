@@ -7,9 +7,9 @@ from enum import Enum
 
 from quality import create_production_matrix
 
-NUM_TIERS = 5
-BEST_PROD_MODULE = 0.25  # [0.100, 0.130, 0.160, 0.190, 0.250]
-BEST_QUAL_MODULE = 0.062  # [0.025, 0.032, 0.040, 0.047, 0.062]
+NUM_TIERS = 3
+BEST_PROD_MODULE = 0.06  # [0.100, 0.130, 0.160, 0.190, 0.250]
+BEST_QUAL_MODULE = 0.04  # [0.025, 0.032, 0.040, 0.047, 0.062]
 
 
 def create_transition_matrix(assembler_matrix: np.ndarray, recycler_matrix: np.ndarray) -> np.ndarray:
@@ -239,7 +239,7 @@ def assembler_recycler_loop(
             break
 
     # Create the output dataframe
-    col_headers = ["I1", "I2", "I3", "I4", "I5", "P1", "P2", "P3", "P4", "P5"]
+    col_headers = ["I1", "I2", "I3", "P1", "P2", "P3"]
     output_df = pd.DataFrame(data=result_flows, columns=col_headers)
     crafting_time_df = pd.DataFrame(data=crafting_time, columns=["Crafting time", "Max time index"])
     output_df = output_df.join(crafting_time_df)
@@ -429,28 +429,28 @@ if __name__ == "__main__":
     pd.set_option("colheader_justify", "right")
     pd.options.display.float_format = "{:.2f}".format
 
-    n_slots = 4
-    base_prod = 1.0
+    n_slots = 5
+    base_prod = 1.5
     full_qual_config = [(0, n_slots)] * (NUM_TIERS - 1) + [(n_slots, 0)]
     full_prod_config = [(n_slots, 0)] * NUM_TIERS
     optimal_leg_config = [(n_slots - 1, 1)] * (NUM_TIERS - 1) + [(n_slots, 0)]
 
-    # AR loop for producing legendary carbon fiber
-    input_vector = np.array([60, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+    # AR loop for producing rare Quality Module 3s
+    input_vector = np.array([44.8, 0.0, 0.0, 0.0, 0.0, 0.0])
     results = assembler_recycler_loop(
         input_vector=input_vector,
         assembler_modules_config=full_qual_config,
-        product_quality_to_keep=None,
-        ingredient_quality_to_keep=NUM_TIERS,
+        product_quality_to_keep=NUM_TIERS,
+        ingredient_quality_to_keep=None,
         base_prod_bonus=base_prod,
-        recipe_ratio=(1 / 10),  # NB: ratio of products:ingredients in the recipe
-        prod_module_bonus=BEST_PROD_MODULE,
+        recipe_ratio=(1 / 4),  # NB: ratio of products:ingredients in the recipe
+        prod_module_bonus=0,
         qual_module_bonus=BEST_QUAL_MODULE,
-        speed_assemblers=[2.5, 2.5, 2.5, 2.5, 2.5],  # Assemblers with 4x qual
-        speed_recycler=1,  # legendary recyclers
-        recipe_time=10,
-        num_assemblers=[26, 4, 1, 1, 1],
-        num_recyclers=4,
+        speed_assemblers=[1.5, 1.5, 1.5],  # EM plants with 5x qual modules
+        speed_recycler=0.4,  # normal recyclers
+        recipe_time=60,
+        num_assemblers=[600, 100, 100],
+        num_recyclers=300,
         verbose=True,
     )
 
@@ -482,7 +482,7 @@ if __name__ == "__main__":
     print("\n## Flow per minute (to compare with the production statistics panel):")
     print(flows * 60)
 
-    print("## Legendary production rate per hour: %.1f" % (flows[9] * 3600))
+    # print("## Legendary production rate per hour: %.1f" % (flows[9] * 3600))
 
     # eff = assembler_recycler_efficiency(
     #     n_slots,
