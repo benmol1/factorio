@@ -7,8 +7,8 @@ from enum import Enum
 
 from quality import create_production_matrix
 
-NUM_TIERS = 3
-BEST_PROD_MODULE = 0.06  # [0.100, 0.130, 0.160, 0.190, 0.250]
+NUM_TIERS = 5
+BEST_PROD_MODULE = 0.16  # [0.100, 0.130, 0.160, 0.190, 0.250]
 BEST_QUAL_MODULE = 0.04  # [0.025, 0.032, 0.040, 0.047, 0.062]
 
 
@@ -211,6 +211,7 @@ def assembler_recycler_loop(
 
     if verbose:
         print("\n## Transition matrix:\n", transition_matrix)
+        print("\n## Transition matrix:\n", transition_matrix)
         print("\n## Crafting time vector:\n", crafting_time_vector)
         print("\n## Max flow vector:\n", max_flow_vector)
 
@@ -239,7 +240,7 @@ def assembler_recycler_loop(
             break
 
     # Create the output dataframe
-    col_headers = ["I1", "I2", "I3", "P1", "P2", "P3"]
+    col_headers = ["I1", "I2", "I3", "I4", "I5", "P1", "P2", "P3", "P4", "P5"]
     output_df = pd.DataFrame(data=result_flows, columns=col_headers)
     crafting_time_df = pd.DataFrame(data=crafting_time, columns=["Crafting time", "Max time index"])
     output_df = output_df.join(crafting_time_df)
@@ -429,27 +430,27 @@ if __name__ == "__main__":
     pd.set_option("colheader_justify", "right")
     pd.options.display.float_format = "{:.2f}".format
 
-    n_slots = 4
-    base_prod = 1.0
+    n_slots = 5
+    base_prod = 1.5
     full_qual_config = [(0, n_slots)] * (NUM_TIERS - 1) + [(n_slots, 0)]
     full_prod_config = [(n_slots, 0)] * NUM_TIERS
     optimal_leg_config = [(n_slots - 1, 1)] * (NUM_TIERS - 1) + [(n_slots, 0)]
 
-    # AR loop for producing rare roboport mk2s
-    input_vector = np.array([2.5 / 1.21, 0.0, 0.0, 0.0, 0.0, 0.0])
+    # AR loop for producing legendary holmium plates via EM plants
+    input_vector = np.array([53.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
     results = assembler_recycler_loop(
         input_vector=input_vector,
         assembler_modules_config=full_qual_config,
-        product_quality_to_keep=NUM_TIERS,
-        ingredient_quality_to_keep=None,
+        product_quality_to_keep=None,
+        ingredient_quality_to_keep=NUM_TIERS,
         base_prod_bonus=base_prod,
-        recipe_ratio=(1 / 50),  # NB: ratio of products:ingredients in the recipe
+        recipe_ratio=(1 / 150),  # NB: ratio of products:ingredients in the recipe
         prod_module_bonus=0,
         qual_module_bonus=BEST_QUAL_MODULE,
-        speed_assemblers=[1, 1, 1],  # Assembler3s with 4x qual modules
-        speed_recycler=0.4,  # normal recyclers
-        recipe_time=20,
-        num_assemblers=[1, 1, 1],
+        speed_assemblers=[2.4, 1.5, 1.5, 1.5, 1.5],  # First assembler3 is rare
+        speed_recycler=0.64,  # rare recyclers
+        recipe_time=10,
+        num_assemblers=[2, 1, 1, 1, 1],
         num_recyclers=1,
         verbose=True,
     )
