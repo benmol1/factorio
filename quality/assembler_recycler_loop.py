@@ -8,8 +8,8 @@ from enum import Enum
 from quality import create_production_matrix
 
 NUM_TIERS = 5
-BEST_PROD_MODULE = 0.16  # [0.100, 0.130, 0.160, 0.190, 0.250]
-BEST_QUAL_MODULE = 0.04  # [0.025, 0.032, 0.040, 0.047, 0.062]
+BEST_PROD_MODULE = 0.250  # [0.100, 0.130, 0.160, 0.190, 0.250]
+BEST_QUAL_MODULE = 0.062  # [0.025, 0.032, 0.040, 0.047, 0.062]
 
 
 def create_transition_matrix(assembler_matrix: np.ndarray, recycler_matrix: np.ndarray) -> np.ndarray:
@@ -437,7 +437,7 @@ if __name__ == "__main__":
     optimal_leg_config = [(n_slots - 1, 1)] * (NUM_TIERS - 1) + [(n_slots, 0)]
 
     # AR loop for producing legendary holmium plates via EM plants
-    input_vector = np.array([53.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+    input_vector = np.array([57.95, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
     results = assembler_recycler_loop(
         input_vector=input_vector,
         assembler_modules_config=full_qual_config,
@@ -447,11 +447,11 @@ if __name__ == "__main__":
         recipe_ratio=(1 / 150),  # NB: ratio of products:ingredients in the recipe
         prod_module_bonus=0,
         qual_module_bonus=BEST_QUAL_MODULE,
-        speed_assemblers=[2.4, 1.5, 1.5, 1.5, 1.5],  # First assembler3 is rare
-        speed_recycler=0.64,  # rare recyclers
+        speed_assemblers=[2.4, 1.5, 1.5, 1.5, 1.5],  # First EM plant is rare
+        speed_recycler=0.8,  # legendary recyclers
         recipe_time=10,
         num_assemblers=[2, 1, 1, 1, 1],
-        num_recyclers=1,
+        num_recyclers=2,
         verbose=True,
     )
 
