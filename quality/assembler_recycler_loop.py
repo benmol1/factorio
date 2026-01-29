@@ -431,27 +431,27 @@ if __name__ == "__main__":
     pd.options.display.float_format = "{:.2f}".format
 
     n_slots = 4
-    base_prod = 1.0
+    base_prod = 1.5
     full_qual_config = [(0, n_slots)] * (NUM_TIERS - 1) + [(n_slots, 0)]
     full_prod_config = [(n_slots, 0)] * NUM_TIERS
     optimal_leg_config = [(n_slots - 1, 1)] * (NUM_TIERS - 1) + [(n_slots, 0)]
 
-    # AR loop for producing legendary holmium plates via EM plants
-    input_vector = np.array([100, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+    # AR loop for producing legendary tungsten plates via turbo underground belts
+    input_vector = np.array([240, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
     results = assembler_recycler_loop(
         input_vector=input_vector,
         assembler_modules_config=full_qual_config,
         product_quality_to_keep=None,
         ingredient_quality_to_keep=NUM_TIERS,
         base_prod_bonus=base_prod,
-        recipe_ratio=(1 / 10),  # NB: ratio of products:ingredients in the recipe
+        recipe_ratio=(1/40),  # NB: ratio of products:ingredients in the recipe
         prod_module_bonus=0,
         qual_module_bonus=BEST_QUAL_MODULE,
-        speed_assemblers=[2.5, 2.5, 2.5, 1, 1],  # First EM plant is rare
+        speed_assemblers=[8, 3.2, 3.2, 3.2, 1],  # First Foundry is Legendary
         speed_recycler=1,  # legendary recyclers
-        recipe_time=10,
-        num_assemblers=[48, 6, 2, 2, 1],
-        num_recyclers=10,
+        recipe_time=2,
+        num_assemblers=[2, 1, 1, 1, 1],
+        num_recyclers=2,
         verbose=True,
     )
 
