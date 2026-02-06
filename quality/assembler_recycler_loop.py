@@ -436,22 +436,22 @@ if __name__ == "__main__":
     full_prod_config = [(n_slots, 0)] * NUM_TIERS
     optimal_leg_config = [(n_slots - 1, 1)] * (NUM_TIERS - 1) + [(n_slots, 0)]
 
-    # AR loop for producing legendary u-235 via atmoic bombs
-    input_vector = np.array([20, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+    # AR loop for producing legendary u-238 via uranium ammo
+    input_vector = np.array([8.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
     results = assembler_recycler_loop(
         input_vector=input_vector,
         assembler_modules_config=full_qual_config,
         product_quality_to_keep=None,
         ingredient_quality_to_keep=NUM_TIERS,
         base_prod_bonus=base_prod,
-        recipe_ratio=(1/100),  # NB: ratio of products:ingredients in the recipe
+        recipe_ratio=1,  # NB: ratio of products:ingredients in the recipe
         prod_module_bonus=0,
         qual_module_bonus=BEST_QUAL_MODULE,
         speed_assemblers=[2.5, 2.5, 2.5, 2.5, 1],  # Legendary assemblers
         speed_recycler=1,  # legendary recyclers
-        recipe_time=50,
-        num_assemblers=[5, 1, 1, 1, 1],
-        num_recyclers=1,
+        recipe_time=10,
+        num_assemblers=[40, 4, 2, 1, 1],
+        num_recyclers=8,
         verbose=True,
     )
 
