@@ -1,32 +1,30 @@
-from quality import create_production_matrix, NUM_TIERS
-import numpy as np
+from __future__ import annotations
+
 from functools import lru_cache
-from typing import Union
+
+import numpy as np
 import pandas as pd
 
+from quality import NUM_TIERS, create_production_matrix
 
-@lru_cache()
+
+@lru_cache
 def recycler_matrix(quality_chance: float, quality_to_keep: int = 5, is_asteroid_crusher: bool = False) -> np.ndarray:
-    """Returns a matrix of a recycler with quality chance `quality_chance`
-    that saves any item of quality level `quality_to_keep` or above.
+    """Create a recycler transition matrix for the given quality chance.
 
     Args:
-        quality_chance (float): Quality chance of the recyclers (in %).
-        quality_to_keep (int): Minimum quality level of the items to be removed from the system
-            (By default only removes legendaries).
-        production_ratio (float): Productivity ratio of the recyclers (0.25 by default)
+        quality_chance: Quality chance of the recyclers as a decimal.
+        quality_to_keep: Minimum quality tier to extract (1-5). Defaults to 5 (legendary).
+        is_asteroid_crusher: If True, uses 0.8 production ratio instead of 0.25.
 
     Returns:
-        np.ndarray: Standard production matrix.
+        NxN production matrix for the recycler.
     """
     assert quality_chance > 0
-    assert type(quality_to_keep) == int and 1 <= quality_to_keep <= 5
+    assert isinstance(quality_to_keep, int) and 1 <= quality_to_keep <= 5
 
     # Set the production ratio for this loop
-    if is_asteroid_crusher:
-        production_ratio = 0.8
-    else:
-        production_ratio = 0.25
+    production_ratio = 0.8 if is_asteroid_crusher else 0.25
 
     recycling_rows = quality_to_keep - 1
     saving_rows = NUM_TIERS - recycling_rows
@@ -35,35 +33,40 @@ def recycler_matrix(quality_chance: float, quality_to_keep: int = 5, is_asteroid
 
 
 def recycler_loop(
-    input_vector: Union[np.array, float],
+    input_vector: np.array | float,
     quality_chance: float,
     quality_to_keep: int = 5,
     speed_recycler: float = 0.4,
-    num_recyclers: Union[np.array, int] = 1,
+    num_recyclers: np.array | int = 1,
     recipe_time: float = 1.0,
     recipe_ratio: float = 1.0,
     is_asteroid_crusher: bool = False,
     verbose: bool = False,
-) -> (np.ndarray, np.ndarray):
-    """Returns a vector with values for each quality level that mean different things,
-    depending on whether that quality is kept or recycled:
-        - If the quality is kept: the value is the production rate of items of that quality level.
-        - If the quality is recycled: the value is the internal flow rate of items of that quality level in the system.
+) -> tuple[np.ndarray, np.ndarray, float]:
+    """Simulate a pure recycler loop to calculate quality tier flows.
+
+    Returns flow values per quality tier:
+    - Kept tiers: production rate of items at that quality level.
+    - Recycled tiers: internal flow rate in the system.
 
     Args:
-        input_vector (np.array): The flow rate of items going into the system. If a single value is passed,
-            it is assumed to be the input rate of Q1 items going into the system.
-        quality_chance (float): Quality chance of the recycler loop (in %).
-        quality_to_keep (int): Minimum quality level of the items to be removed from the system
-            (By default only removes legendaries).
+        input_vector: Flow rate of items entering the system, or scalar for Q1 only.
+        quality_chance: Quality chance of the recycler loop as a decimal.
+        quality_to_keep: Minimum quality tier to extract. Defaults to 5 (legendary).
+        speed_recycler: Speed of the recyclers.
+        num_recyclers: Number of recyclers (int or array per tier).
+        recipe_time: Base recipe crafting time in seconds.
+        recipe_ratio: Ratio of products to ingredients.
+        is_asteroid_crusher: If True, uses asteroid crusher parameters.
+        verbose: If True, print debug information.
 
     Returns:
-        np.ndarray: Vector with values for each quality level.
+        Tuple of (flow_vector, transition_matrix, total_crafting_time).
     """
-    if type(input_vector) in (float, int):
+    if isinstance(input_vector, (float, int)):
         input_vector = np.array([input_vector, 0, 0, 0, 0])
 
-    if type(num_recyclers) == int:
+    if isinstance(num_recyclers, int):
         num_recyclers = np.array([num_recyclers] * NUM_TIERS)
 
     transition_matrix = recycler_matrix(quality_chance, quality_to_keep, is_asteroid_crusher)
@@ -104,19 +107,31 @@ def recycler_loop(
         print(output_df.head(10))
 
         if sum(output_df["Bottleneck"] > 0):
-            print(output_df[output_df["Bottleneck"] == True])
+            print(output_df[output_df["Bottleneck"]])
             output_df.to_csv("output_df.csv")
 
     return sum(result_flows), transition_matrix, total_crafting_time
 
 
 def create_crafting_time_vector(
-    speed_recycler: float = 0.4,  # the speed of a normal recycler with 4x quality modules
-    num_recyclers: np.ndarray = np.array([1.0] * NUM_TIERS),
+    speed_recycler: float = 0.4,
+    num_recyclers: np.ndarray | None = None,
     recipe_time: float = 1,
     is_asteroid_crusher: bool = False,
 ) -> np.ndarray:
+    """Create a vector of crafting times per tier for recyclers.
 
+    Args:
+        speed_recycler: Speed of the recyclers (0.4 default for normal + quality modules).
+        num_recyclers: Number of recyclers per tier. Defaults to 1 per tier.
+        recipe_time: Base recipe crafting time in seconds.
+        is_asteroid_crusher: If True, removes the 16x recycling speed bonus.
+
+    Returns:
+        Vector of effective crafting times for each tier.
+    """
+    if num_recyclers is None:
+        num_recyclers = np.array([1.0] * NUM_TIERS)
     res = [recipe_time / (16 * speed_recycler)] * NUM_TIERS
     res = np.array(res) / num_recyclers
 
@@ -131,7 +146,17 @@ def create_crafting_time_vector(
 def compute_crafting_time(
     input_flows: np.ndarray, prev_crafting_time: list, recipe_ratio: float, ct_vector: np.ndarray
 ) -> list:
+    """Compute the crafting time for one iteration of the recycler loop.
 
+    Args:
+        input_flows: Flow rates entering each tier this iteration.
+        prev_crafting_time: Previous iteration's crafting time result.
+        recipe_ratio: Ratio of products to ingredients in the recipe.
+        ct_vector: Crafting time vector from create_crafting_time_vector.
+
+    Returns:
+        List containing [total_crafting_time, max_time_index, is_bottleneck].
+    """
     ct = 0
 
     # The recyclers are in series, so the total crafting time is relevant
@@ -151,27 +176,34 @@ def compute_crafting_time(
 
 
 def get_production_rate(
-    input_vector: np.ndarray, output_flows: np.ndarray, transition_matrix: np.ndarray, is_asteroid_crusher: bool = False
+    input_vector: np.ndarray,
+    output_flows: np.ndarray,
+    transition_matrix: np.ndarray,
+    is_asteroid_crusher: bool = False,
 ) -> np.ndarray:
+    """Compute the production rate at each quality level.
+
+    The game's production tracker only captures item-created and item-destroyed events.
+    When an item is recycled into itself, this doesn't register. This function computes
+    actual production rates comparable to the game's production statistics panel.
+
+    Args:
+        input_vector: Initial input flow rates per tier.
+        output_flows: Total output flow rates from the simulation.
+        transition_matrix: The transition matrix used in the simulation.
+        is_asteroid_crusher: If True, applies asteroid crusher production counting.
+
+    Returns:
+        Production rate per quality tier.
     """
-    Computes the production rate at each quality level.
-
-    The game's internal production tracker only captures item-created and item-destroyed events. Therefore when an item
-    is recycled into itself this doesn't show as either. This function specifically computes the rate at which items are
-    produced, as opposed to the total flows - this is directly comparable with the game's production statistics panel
-
-    """
-
-    # in order to provide the input_vector, it must first be produced somewhere
+    # In order to provide the input_vector, it must first be produced somewhere
     production_rate = input_vector
 
-    # For typical recycling loops, the only way to produce an item is to upcycle its equivalents from the tiers below.
-    # These up-cycling flows are given by multiplying total outputs flows per tier by the relevant cell(s) of the
-    # transition matrix.
-    # For asteroid crushers this is not true, as equal-tier production events happen frequently.
-    # Ignoring quality and the 0.8 productivity factor, 50% of asteroid reprocessing crafts return
-    # an equiv-tier product (the other 50% of crafts return the same item back, so there's there's no item-created event).
-    # So whilst we typically would ignore equiv-tier (=on-diagonal) transitions, for the asteroid crusher we apply a scalar of 0.5)
+    # For typical recycling loops, items are only produced by upcycling from lower tiers.
+    # For asteroid crushers, equal-tier production events happen frequently.
+    # ~50% of asteroid reprocessing crafts return an equiv-tier product (the other 50%
+    # return the same item, so there's no item-created event).
+    # We apply a 0.5 scalar for on-diagonal transitions for asteroid crushers.
     for ii in range(0, NUM_TIERS):
         prod_rate = 0
         for jj in range(ii + 1):
@@ -232,6 +264,6 @@ if __name__ == "__main__":
 
     print("## Production rates per minute:")
     print(production_rate * 60)
-    print("## Legendary production rate per hour: %.1f" % (production_rate[4] * 3600))
+    print(f"## Legendary production rate per hour: {production_rate[4] * 3600:.1f}")
 
-    print("## Total crafting time: %.2f seconds" % total_crafting_time)
+    print(f"## Total crafting time: {total_crafting_time:.2f} seconds")
