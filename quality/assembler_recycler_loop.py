@@ -5,9 +5,7 @@ import itertools
 from tqdm import tqdm
 from enum import Enum
 
-from quality import create_production_matrix, NUM_TIERS
-BEST_PROD_MODULE = 0.250  # [0.100, 0.130, 0.160, 0.190, 0.250]
-BEST_QUAL_MODULE = 0.062  # [0.025, 0.032, 0.040, 0.047, 0.062]
+from quality import create_production_matrix, NUM_TIERS, BEST_PROD_MODULE, BEST_QUAL_MODULE
 
 
 def create_transition_matrix(assembler_matrix: np.ndarray, recycler_matrix: np.ndarray) -> np.ndarray:

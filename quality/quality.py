@@ -4,6 +4,8 @@ from enum import IntEnum
 from typing import Union, List, Tuple
 
 NUM_TIERS = 5
+BEST_PROD_MODULE = 0.250  # [0.100, 0.130, 0.160, 0.190, 0.250]
+BEST_QUAL_MODULE = 0.062  # [0.025, 0.032, 0.040, 0.047, 0.062]
 
 
 class QualityTier(IntEnum):
