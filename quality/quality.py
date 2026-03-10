@@ -1,7 +1,6 @@
-import numpy as np
-
 from enum import IntEnum
-from typing import Union, List, Tuple
+
+import numpy as np
 
 NUM_TIERS = 5
 BEST_PROD_MODULE = 0.250  # [0.100, 0.130, 0.160, 0.190, 0.250]
@@ -9,6 +8,8 @@ BEST_QUAL_MODULE = 0.062  # [0.025, 0.032, 0.040, 0.047, 0.062]
 
 
 class QualityTier(IntEnum):
+    """Enumeration of quality tiers in Factorio's quality system."""
+
     Normal = 0
     Uncommon = 1
     Rare = 2
@@ -17,22 +18,23 @@ class QualityTier(IntEnum):
 
 
 def quality_probability(quality_chance: float, input_tier: QualityTier, output_tier: QualityTier) -> float:
-    """Calculates the probability of a machine craft with a certain `quality_chance` upgrading
+    """Calculate the probability of upgrading from one quality tier to another.
+
+    Calculates the probability of a machine craft with a certain `quality_chance` upgrading
     the resulting product from the tier of the products (`input_tier`) to the `output_tier`.
 
     Args:
-        quality_chance (float): Quality chance
-        input_tier (QualityTier): Quality tier of the ingredients.
-        output_tier (QualityTier): Quality tier of the product.
+        quality_chance: Quality chance as a float between 0 and 1.
+        input_tier: Quality tier of the ingredients.
+        output_tier: Quality tier of the product.
 
     Returns:
-        float: A probability from 0 to 1.
+        A probability from 0 to 1.
     """
-
     # Basic validations
     assert 0 <= quality_chance <= 1
-    assert 0 <= input_tier <= (NUM_TIERS - 1) and type(input_tier) == int
-    assert 0 <= output_tier <= (NUM_TIERS - 1) and type(output_tier) == int
+    assert 0 <= input_tier <= (NUM_TIERS - 1) and isinstance(input_tier, int)
+    assert 0 <= output_tier <= (NUM_TIERS - 1) and isinstance(output_tier, int)
 
     # Some QoL conversions
     i = input_tier
@@ -59,16 +61,16 @@ def quality_probability(quality_chance: float, input_tier: QualityTier, output_t
 
 
 def quality_matrix(quality_chance: float) -> np.ndarray:
-    """Returns the quality matrix for the corresponding `quality_chance` which indicates
-    the probabilities of any input tier jumping to any other tier.
+    """Return the quality transition matrix for a given quality chance.
+
+    The matrix indicates the probabilities of any input tier jumping to any other tier.
 
     Args:
-        quality_chance (float): Quality chance (in %).
+        quality_chance: Quality chance as a decimal (e.g., 0.25 for 25%).
 
     Returns:
-        np.ndarray: nxn matrix. The input quality is split by row; output quality by column
+        NxN matrix where rows are input quality and columns are output quality.
     """
-
     res = np.zeros((NUM_TIERS, NUM_TIERS))
 
     for row in range(NUM_TIERS):
@@ -78,22 +80,21 @@ def quality_matrix(quality_chance: float) -> np.ndarray:
     return res
 
 
-def create_production_matrix(parameters_per_row: List[Tuple[float, float]]) -> np.ndarray:
-    """Returns a production matrix where every row has a specific quality chance and prodution ratio.
+def create_production_matrix(parameters_per_row: list[tuple[float, float]]) -> np.ndarray:
+    """Create a production matrix with per-row quality chance and production ratio.
 
     Args:
-        parameters_per_row (List[Tuple[float, float]]): List of five tuples. Each tuple indicates the
-            quality chance (%) and production ratio for the respective row.
+        parameters_per_row: List of five tuples. Each tuple contains
+            (quality_chance, production_ratio) for the respective row.
 
     Returns:
-        np.ndarray: nxn production matrix.
+        NxN production matrix combining quality transitions with production ratios.
     """
-
     # Basic validations
     assert len(parameters_per_row) == NUM_TIERS
-    assert type(parameters_per_row) == list
+    assert isinstance(parameters_per_row, list)
     for pair in parameters_per_row:
-        assert type(pair) == tuple
+        assert isinstance(pair, tuple)
         assert len(pair) == 2
 
     res = np.zeros((NUM_TIERS, NUM_TIERS))
