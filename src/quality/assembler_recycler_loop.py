@@ -38,7 +38,7 @@ def create_crafting_time_vector(
         speed_assembler: List of assembler speeds per quality tier.
         num_assemblers: List of assembler counts per quality tier.
         speed_recycler: Speed of the recyclers.
-        num_recyclers: Number of recyclers.python quality/quality.py
+        num_recyclers: Number of recyclers
         recipe_time: Base recipe crafting time in seconds.
 
     Returns:
