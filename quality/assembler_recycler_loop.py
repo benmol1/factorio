@@ -1,11 +1,7 @@
 from __future__ import annotations
 
-import itertools
-from enum import Enum
-
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 
 from quality import BEST_PROD_MODULE, BEST_QUAL_MODULE, NUM_TIERS, create_production_matrix
 
@@ -289,97 +285,6 @@ def assembler_recycler_loop(
     return sum(result_flows), transition_matrix, total_crafting_time, max_flow_vector
 
 
-class SystemOutput(Enum):
-    """Specifies whether to optimize for ingredient or item output."""
-
-    INGREDIENTS = 0
-    ITEMS = 1
-
-
-class ModuleStrategy(Enum):
-    """Module configuration strategy for efficiency calculations."""
-
-    FULL_QUALITY = 0
-    FULL_PRODUCTIVITY = 1
-    OPTIMIZE = 2
-
-
-def get_all_configs(module_slots: int):
-    """Generate all possible configurations for an assembler with `n` module slots."""
-    module_variations_for_assembler = []
-
-    for p in range(module_slots + 1):
-        q = module_slots - p
-        module_variations_for_assembler.append((p, q))
-
-    res = list(itertools.product(*[module_variations_for_assembler] * NUM_TIERS))
-
-    for i in range(len(res)):
-        res[i] = list(res[i])
-
-    return res
-
-
-def assembler_recycler_efficiency(
-    module_slots: int,
-    base_productivity: float,
-    system_output: SystemOutput,
-    module_strategy: ModuleStrategy,
-    prod_mod_bonus: float = BEST_PROD_MODULE,
-    qual_mod_bonus: float = BEST_QUAL_MODULE,
-    target_tier: int = NUM_TIERS,
-) -> float:
-    """Returns the efficiency of the setup with the given parameters (%)."""
-    assert module_slots >= 0 and base_productivity >= 0
-
-    if system_output == SystemOutput.ITEMS:
-        keep_items = target_tier
-        keep_ingredients = None
-        result_index = NUM_TIERS + (target_tier - 1)
-    else:  # system_output == SystemOutput.INGREDIENTS:
-        keep_items = None
-        keep_ingredients = target_tier
-        result_index = target_tier - 1
-
-    if module_strategy != ModuleStrategy.OPTIMIZE:
-        config = (module_slots, 0) if module_strategy == ModuleStrategy.FULL_PRODUCTIVITY else (0, module_slots)
-        output = assembler_recycler_loop(
-            100,
-            config,
-            keep_items,
-            keep_ingredients,
-            base_productivity,
-            prod_module_bonus=prod_mod_bonus,
-            qual_module_bonus=qual_mod_bonus,
-        )
-        return output[result_index]
-    else:
-        best_efficiency = 0
-        all_configs = get_all_configs(module_slots)
-
-        for config in tqdm(list(all_configs)):
-            if config[NUM_TIERS - 1] != (module_slots, 0):
-                # Makes no sense to put quality modules on legendary item crafter
-                continue
-
-            output = assembler_recycler_loop(
-                100,
-                config,
-                keep_items,
-                keep_ingredients,
-                base_productivity,
-                prod_module_bonus=prod_mod_bonus,
-                qual_module_bonus=qual_mod_bonus,
-            )
-            efficiency = float(output[0][result_index])
-
-            if best_efficiency < efficiency:
-                best_efficiency = efficiency
-                print(f"{config}: {efficiency:.2f}")
-
-        return best_efficiency
-
-
 if __name__ == "__main__":
     np.set_printoptions(precision=2, suppress=True, linewidth=1000)
     pd.set_option("display.max_columns", 14)
@@ -441,13 +346,3 @@ if __name__ == "__main__":
     print(flows * 60)
 
     # print("## Legendary production rate per hour: %.1f" % (flows[9] * 3600))
-
-    # eff = assembler_recycler_efficiency(
-    #     n_slots,
-    #     base_prod,
-    #     system_output=SystemOutput.ITEMS,
-    #     module_strategy=ModuleStrategy.OPTIMIZE,
-    #     target_tier=NUM_TIERS,  # targeting legendary products
-    #     prod_mod_bonus=BEST_PROD_MODULE,
-    #     qual_mod_bonus=BEST_QUAL_MODULE,
-    # )
