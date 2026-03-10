@@ -1,6 +1,6 @@
 """Factorio quality system simulation package."""
 
-from src.quality.quality import (
+from src.quality.utils import (
     BEST_PROD_MODULE,
     BEST_QUAL_MODULE,
     NUM_TIERS,
