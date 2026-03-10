@@ -1,5 +1,21 @@
-# created by virtualenv automatically
-.venv/
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+output_df.csv
+
+# IDE
 .idea/
-quality/output_df.csv
-/quality/__pycache__
+.vscode/
+*.swp
+
+# Environment
+.env
+.venv/
+venv/
