@@ -1,15 +1,15 @@
 """Tests for the recycler and assembler-recycler loop simulations."""
 
 import numpy as np
-from assembler_recycler_loop import (
+
+from src.quality import BEST_QUAL_MODULE, NUM_TIERS
+from src.quality.assembler_recycler_loop import (
     assembler_recycler_loop,
     create_transition_matrix,
     get_assembler_parameters,
     get_recycler_parameters,
 )
-from pure_recycler_loop import recycler_loop, recycler_matrix
-
-from quality import BEST_QUAL_MODULE, NUM_TIERS
+from src.quality.pure_recycler_loop import recycler_loop, recycler_matrix
 
 
 class TestRecyclerMatrix:

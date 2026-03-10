@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from quality import (
+from src.quality import (
     NUM_TIERS,
     QualityTier,
     create_production_matrix,
