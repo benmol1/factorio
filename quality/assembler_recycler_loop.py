@@ -5,11 +5,7 @@ import itertools
 from tqdm import tqdm
 from enum import Enum
 
-from quality import create_production_matrix
-
-NUM_TIERS = 5
-BEST_PROD_MODULE = 0.250  # [0.100, 0.130, 0.160, 0.190, 0.250]
-BEST_QUAL_MODULE = 0.062  # [0.025, 0.032, 0.040, 0.047, 0.062]
+from quality import create_production_matrix, NUM_TIERS, BEST_PROD_MODULE, BEST_QUAL_MODULE
 
 
 def create_transition_matrix(assembler_matrix: np.ndarray, recycler_matrix: np.ndarray) -> np.ndarray:
@@ -80,22 +76,6 @@ def compute_crafting_time(
         max_time_index = NUM_TIERS + 1
 
     return [ct, max_time_index]
-
-
-def create_crafting_time_matrix(
-    transition_matrix: np.ndarray, assembler_speed: float, recycler_speed: float
-) -> np.ndarray:
-
-    res = np.zeros((NUM_TIERS * 2, NUM_TIERS * 2))
-
-    for i in range(NUM_TIERS * 2):
-        for j in range(NUM_TIERS * 2):
-            if i < NUM_TIERS:
-                res[i][j] = transition_matrix[i][j] / assembler_speed
-            else:
-                res[i][j] = transition_matrix[i][j] / (recycler_speed) / 16
-
-    return res
 
 
 def get_assembler_parameters(
@@ -211,7 +191,6 @@ def assembler_recycler_loop(
 
     if verbose:
         print("\n## Transition matrix:\n", transition_matrix)
-        print("\n## Transition matrix:\n", transition_matrix)
         print("\n## Crafting time vector:\n", crafting_time_vector)
         print("\n## Max flow vector:\n", max_flow_vector)
 
@@ -250,10 +229,6 @@ def assembler_recycler_loop(
         print(output_df.head(10))
 
     return sum(result_flows), transition_matrix, total_crafting_time, max_flow_vector
-
-
-def get_config_string(config: List[Tuple[int, int]]):
-    return [f"{p}P{q}Q" for (p, q) in config]
 
 
 class SystemOutput(Enum):
@@ -348,78 +323,6 @@ def assembler_recycler_efficiency(
                 print(config, ": %.2f" % efficiency)
 
         return best_efficiency
-
-
-def efficiency_table():
-    DATA = {  # (number of slots, base productivity)
-        "Electric furnace/Centrifuge": (2, 0),
-        "Chemical Plant": (3, 0),
-        "Assembling machine": (4, 0),
-        "Foundry/Biochamber": (4, 0.5),
-        "Electromagnetic plant": (5, 0.5),
-        "Cryogenic plant": (8, 0),
-    }
-    OUTPUTS = (SystemOutput.ITEMS, SystemOutput.INGREDIENTS)
-    STRATEGIES = (ModuleStrategy.FULL_QUALITY, ModuleStrategy.FULL_PRODUCTIVITY, ModuleStrategy.OPTIMIZE)
-    KEY_NAMES = {
-        (SystemOutput.ITEMS, ModuleStrategy.FULL_QUALITY): "(D) Quality only, max items",
-        (SystemOutput.ITEMS, ModuleStrategy.FULL_PRODUCTIVITY): "(E) Prod only, max items",
-        (SystemOutput.ITEMS, ModuleStrategy.OPTIMIZE): "(F) Optimal modules, max items",
-        (SystemOutput.INGREDIENTS, ModuleStrategy.FULL_QUALITY): "(G) Quality only, max ingredients",
-        (SystemOutput.INGREDIENTS, ModuleStrategy.FULL_PRODUCTIVITY): "(H) Prod only, max ingredients",
-        (SystemOutput.INGREDIENTS, ModuleStrategy.OPTIMIZE): "(I) Optimal modules, max ingredients",
-    }
-
-    table = {key: {} for key in DATA}
-
-    for assembler_type, (slots, base_prod) in DATA.items():
-        for output in OUTPUTS:
-            for strategy in STRATEGIES:
-                eff = assembler_recycler_efficiency(slots, base_prod, output, strategy)
-                table[assembler_type][KEY_NAMES[(output, strategy)]] = eff
-
-    print(pd.DataFrame(table).T.to_string())
-
-
-def get_production_rate(
-    input_vector: np.ndarray, output_flows: np.ndarray, transition_matrix: np.ndarray
-) -> np.ndarray:
-    """
-    Computes the production rate at each quality level.
-
-    The game's internal production tracker only captures item-created and item-destroyed events. Therefore when an item
-    is recycled into itself this doesn't show as either. This function specifically computes the rate at which items are
-    produced, as opposed to the total flows - this is directly comparable with the game's production statistics panel.
-
-    For the AR loop this is equal the total flows we've already calculated, since every step in the
-    process is either an assembly step (ingredient -> product) or a recycling step (product -> ingredient).
-    Therefore this function is redundant for the AR loop and should never be used :)
-
-    """
-
-    # In order to provide the input_vector, it must first be produced somewhere
-    production_rate = input_vector
-
-    # Ingredients of a given tier (excepting the input vector) are produced by recycling a product of
-    # equal or lower tier. So the production rate of ingredients is given by cross-multiplying the product flows
-    # with the relevant product->ingredient cell(s) of the transition matrix
-
-    for ii in range(0, NUM_TIERS):
-        prod_rate = 0
-        for jj in range(ii + 1):
-            prod_rate += output_flows[jj + NUM_TIERS] * transition_matrix[jj + NUM_TIERS][ii]
-        production_rate[ii] += prod_rate
-
-    # Products of a given tier are produced by assembling ingredients of equal or lower tier.
-    # So the production rate of products is given by cross-multiplying the ingredient flows
-    # with the relevant ingredient->product cell(s) of the transition matrix
-    for ii in range(0, NUM_TIERS):
-        prod_rate = 0
-        for jj in range(ii + 1):
-            prod_rate += output_flows[jj] * transition_matrix[jj][ii + NUM_TIERS]
-        production_rate[ii + NUM_TIERS] += prod_rate
-
-    return production_rate
 
 
 if __name__ == "__main__":

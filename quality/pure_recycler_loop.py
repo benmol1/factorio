@@ -1,11 +1,8 @@
-from quality import create_production_matrix
+from quality import create_production_matrix, NUM_TIERS
 import numpy as np
 from functools import lru_cache
 from typing import Union
-import matplotlib.pyplot as plt
 import pandas as pd
-
-NUM_TIERS = 5
 
 
 @lru_cache()
@@ -32,7 +29,7 @@ def recycler_matrix(quality_chance: float, quality_to_keep: int = 5, is_asteroid
         production_ratio = 0.25
 
     recycling_rows = quality_to_keep - 1
-    saving_rows = 5 - recycling_rows
+    saving_rows = NUM_TIERS - recycling_rows
 
     return create_production_matrix([(quality_chance, production_ratio)] * recycling_rows + [(0, 0)] * saving_rows)
 
@@ -151,28 +148,6 @@ def compute_crafting_time(
         bottleneck = True
 
     return [ct, max_time_index, bottleneck]
-
-
-def normal_to_legendary_ratio():
-    indices = list(range(1, 25)) + [24.8]
-    ratios = [float(1 / recycler_loop(1, i)[4]) for i in indices]
-
-    print(f"{indices[9:]=}")
-    print(f"{ratios[9:]=}")
-
-
-def efficiency_data():
-    indices = list(range(1, 25)) + [24.8]
-
-    uncommon = [float(recycler_loop(100, i, 2)[1]) for i in indices]
-    rare = [float(recycler_loop(100, i, 3)[2]) for i in indices]
-    epic = [float(recycler_loop(100, i, 4)[3]) for i in indices]
-    legendary = [float(recycler_loop(100, i, 5)[4]) for i in indices]
-
-    print(f"{uncommon=}")
-    print(f"{rare=}")
-    print(f"{epic=}")
-    print(f"{legendary=}")
 
 
 def get_production_rate(

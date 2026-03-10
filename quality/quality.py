@@ -4,6 +4,8 @@ from enum import IntEnum
 from typing import Union, List, Tuple
 
 NUM_TIERS = 5
+BEST_PROD_MODULE = 0.250  # [0.100, 0.130, 0.160, 0.190, 0.250]
+BEST_QUAL_MODULE = 0.062  # [0.025, 0.032, 0.040, 0.047, 0.062]
 
 
 class QualityTier(IntEnum):
@@ -74,11 +76,6 @@ def quality_matrix(quality_chance: float) -> np.ndarray:
             res[row][column] = quality_probability(quality_chance, row, column)
 
     return res
-
-
-def basic_production_matrix(quality_chance: float, production_ratio: float = 1) -> np.ndarray:
-    "Returns the production matrix for the corresponding `quality_chance` and `production_ratio`."
-    return quality_matrix(quality_chance) * production_ratio
 
 
 def create_production_matrix(parameters_per_row: List[Tuple[float, float]]) -> np.ndarray:
