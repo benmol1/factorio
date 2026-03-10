@@ -150,28 +150,6 @@ def compute_crafting_time(
     return [ct, max_time_index, bottleneck]
 
 
-def normal_to_legendary_ratio():
-    indices = list(range(1, 25)) + [24.8]
-    ratios = [float(1 / recycler_loop(1, i)[4]) for i in indices]
-
-    print(f"{indices[9:]=}")
-    print(f"{ratios[9:]=}")
-
-
-def efficiency_data():
-    indices = list(range(1, 25)) + [24.8]
-
-    uncommon = [float(recycler_loop(100, i, 2)[1]) for i in indices]
-    rare = [float(recycler_loop(100, i, 3)[2]) for i in indices]
-    epic = [float(recycler_loop(100, i, 4)[3]) for i in indices]
-    legendary = [float(recycler_loop(100, i, 5)[4]) for i in indices]
-
-    print(f"{uncommon=}")
-    print(f"{rare=}")
-    print(f"{epic=}")
-    print(f"{legendary=}")
-
-
 def get_production_rate(
     input_vector: np.ndarray, output_flows: np.ndarray, transition_matrix: np.ndarray, is_asteroid_crusher: bool = False
 ) -> np.ndarray:

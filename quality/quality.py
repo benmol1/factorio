@@ -76,11 +76,6 @@ def quality_matrix(quality_chance: float) -> np.ndarray:
     return res
 
 
-def basic_production_matrix(quality_chance: float, production_ratio: float = 1) -> np.ndarray:
-    "Returns the production matrix for the corresponding `quality_chance` and `production_ratio`."
-    return quality_matrix(quality_chance) * production_ratio
-
-
 def create_production_matrix(parameters_per_row: List[Tuple[float, float]]) -> np.ndarray:
     """Returns a production matrix where every row has a specific quality chance and prodution ratio.
 
