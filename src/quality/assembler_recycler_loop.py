@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from quality import BEST_PROD_MODULE, BEST_QUAL_MODULE, NUM_TIERS, create_production_matrix
+from src.quality.utils import BEST_PROD_MODULE, BEST_QUAL_MODULE, NUM_TIERS, create_production_matrix
 
 
 def create_transition_matrix(assembler_matrix: np.ndarray, recycler_matrix: np.ndarray) -> np.ndarray:
@@ -38,7 +38,7 @@ def create_crafting_time_vector(
         speed_assembler: List of assembler speeds per quality tier.
         num_assemblers: List of assembler counts per quality tier.
         speed_recycler: Speed of the recyclers.
-        num_recyclers: Number of recyclers.
+        num_recyclers: Number of recyclers
         recipe_time: Base recipe crafting time in seconds.
 
     Returns:

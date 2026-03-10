@@ -5,7 +5,7 @@ from functools import lru_cache
 import numpy as np
 import pandas as pd
 
-from quality import NUM_TIERS, create_production_matrix
+from src.quality.utils import NUM_TIERS, create_production_matrix
 
 
 @lru_cache

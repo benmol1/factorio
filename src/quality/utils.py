@@ -111,11 +111,11 @@ def create_production_matrix(parameters_per_row: list[tuple[float, float]]) -> n
 if __name__ == "__main__":
     np.set_printoptions(suppress=True)
 
-    qual_mat_EMP = quality_matrix(0.235)
+    qual_mat_EMP = quality_matrix(BEST_QUAL_MODULE * 5)
 
     print(qual_mat_EMP)
 
-    params_BC_em_plant = [(0.235, 1.5)] * (NUM_TIERS - 1) + [(0, 1.5)]
+    params_BC_em_plant = [(BEST_QUAL_MODULE * 5, 1.5)] * (NUM_TIERS - 1) + [(0, 1.5)]
     prod_mat_BC_em_plant = create_production_matrix(params_BC_em_plant)
 
     print(prod_mat_BC_em_plant)
