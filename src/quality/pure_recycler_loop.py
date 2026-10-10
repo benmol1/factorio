@@ -192,7 +192,7 @@ def get_production_rate(
         Production rate per quality tier.
     """
     # In order to provide the input_vector, it must first be produced somewhere
-    production_rate = input_vector
+    production_rate = np.array(input_vector, dtype=float)
 
     # Items are only produced by upcycling from lower tiers, so the on-diagonal (same-tier) transitions don't count
     for ii in range(0, NUM_TIERS):

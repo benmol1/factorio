@@ -9,7 +9,12 @@ from src.quality.assembler_recycler_loop import (
     get_assembler_parameters,
     get_recycler_parameters,
 )
-from src.quality.pure_recycler_loop import create_crafting_time_vector, recycler_loop, recycler_matrix
+from src.quality.pure_recycler_loop import (
+    create_crafting_time_vector,
+    get_production_rate,
+    recycler_loop,
+    recycler_matrix,
+)
 
 
 class TestRecyclerMatrix:
@@ -226,3 +231,24 @@ class TestRecycleTime:
         _, _, _, max_flow_fast = assembler_recycler_loop(**kwargs, recycle_time=0.5)
         # Default recycle time is 16 / 16 = 1s, so halving it doubles the recycler max flow
         np.testing.assert_allclose(max_flow_fast[NUM_TIERS:], 2 * max_flow_default[NUM_TIERS:])
+
+
+class TestGetProductionRate:
+    """Tests for get_production_rate."""
+
+    def test_does_not_modify_input_vector(self):
+        """The caller's input_vector must be left untouched."""
+        input_vec = np.array([100.0, 0, 0, 0, 0])
+        original = input_vec.copy()
+        flows, transition_matrix, _ = recycler_loop(input_vec, quality_chance=0.25)
+        rates = get_production_rate(input_vec, flows, transition_matrix)
+        np.testing.assert_array_equal(input_vec, original)
+        assert rates[1] > 0
+
+    def test_accepts_integer_input(self):
+        """An integer array shouldn't break or truncate the result."""
+        input_vec = np.array([100, 0, 0, 0, 0])
+        flows, transition_matrix, _ = recycler_loop(input_vec.astype(float), quality_chance=0.25)
+        rates = get_production_rate(input_vec, flows, transition_matrix)
+        assert rates.dtype == float
+        assert rates[1] > 0
