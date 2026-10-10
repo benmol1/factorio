@@ -51,6 +51,16 @@ uv run python -m src.quality.assembler_recycler_loop    # run the assembler + re
 uv run pytest                                           # run the test suite
 ```
 
+### 🖥️ Web frontend
+
+```bash
+uv run uvicorn src.web.app:app --reload   # then open http://127.0.0.1:8000
+```
+
+Pick machines, module tiers and qualities in game terms. The app works out speeds, quality chances and
+productivity for you, then shows flows per tier split into ingredients and products, with bottlenecks
+highlighted. The README's worked examples are built in as presets. Game graphics are © Wube Software.
+
 > [!NOTE]
 > Run the demos as modules (`python -m ...`) from the repo root, because the code imports from `src.quality`.
 
@@ -277,9 +287,14 @@ factorio/
 │   ├── utils.py                    # tiers, constants, probability + production matrices
 │   ├── pure_recycler_loop.py       # recycler-only loop simulation
 │   └── assembler_recycler_loop.py  # assembler → recycler loop simulation
+├── src/web/
+│   ├── app.py                      # FastAPI app + JSON API
+│   ├── game_data.py                # machine/module stats (game terms → simulation inputs)
+│   └── static/                     # single-page frontend + Wube icons
 ├── tests/
 │   ├── test_utils.py
-│   └── test_loops.py
+│   ├── test_loops.py
+│   └── test_web.py
 ├── pyproject.toml                  # project metadata, ruff + pytest config
 └── uv.lock
 ```
