@@ -116,7 +116,7 @@ flowchart LR
 
 Module: [`pure_recycler_loop.py`](src/quality/pure_recycler_loop.py)
 
-- Supports **asteroid crushers** (`is_asteroid_crusher=True`): 0.8 return instead of 0.25, and no 16× recycling speed bonus.
+- Takes an optional `recycle_time` (see [Recycle time](#-recycle-time-and-factorio-21)) for items whose recycling recipe isn't the usual 1/16 of the crafting time.
 - `get_production_rate` converts raw flows into numbers comparable with the **in-game production statistics panel**.
   The game only counts item-created and item-destroyed events, so an item that is recycled into itself never shows up.
 
@@ -217,15 +217,15 @@ Any ratio above `1.0` means that tier is the bottleneck and the demo prints whic
 
 | Function | Returns |
 |----------|---------|
-| `recycler_loop(input_vector, quality_chance, quality_to_keep=5, speed_recycler=0.4, num_recyclers=1, recipe_time=1.0, recipe_ratio=1.0, is_asteroid_crusher=False, verbose=False)` | `(flows, transition_matrix, total_crafting_time)` |
-| `recycler_matrix(quality_chance, quality_to_keep=5, is_asteroid_crusher=False)` | 5×5 recycler production matrix (cached). |
-| `get_production_rate(input_vector, output_flows, transition_matrix, is_asteroid_crusher=False)` | Per-tier production rate as shown by the game's stats panel. |
+| `recycler_loop(input_vector, quality_chance, quality_to_keep=5, speed_recycler=0.4, num_recyclers=1, recipe_time=1.0, recipe_ratio=1.0, recycle_time=None, verbose=False)` | `(flows, transition_matrix, total_crafting_time)` |
+| `recycler_matrix(quality_chance, quality_to_keep=5)` | 5×5 recycler production matrix (cached). |
+| `get_production_rate(input_vector, output_flows, transition_matrix)` | Per-tier production rate as shown by the game's stats panel. |
 
 ### `src.quality.assembler_recycler_loop`
 
 | Function | Returns |
 |----------|---------|
-| `assembler_recycler_loop(input_vector, assembler_modules_config, product_quality_to_keep, ingredient_quality_to_keep, base_prod_bonus, recipe_ratio, recipe_time, speed_assemblers, speed_recycler, num_assemblers, num_recyclers, …)` | `(flows, transition_matrix, total_crafting_time, max_flow_vector)` |
+| `assembler_recycler_loop(input_vector, assembler_modules_config, product_quality_to_keep, ingredient_quality_to_keep, base_prod_bonus, recipe_ratio, recipe_time, speed_assemblers, speed_recycler, num_assemblers, num_recyclers, recycle_time, …)` | `(flows, transition_matrix, total_crafting_time, max_flow_vector)` |
 | `get_assembler_parameters(...)` / `get_recycler_parameters(...)` | Per-tier `(quality_chance, production_ratio)` lists. |
 | `create_transition_matrix(assembler_matrix, recycler_matrix)` | The combined 10×10 matrix. |
 | `create_crafting_time_vector(...)` / `create_max_flow_vector(...)` | Per-tier crafting times and max throughputs. |
@@ -238,8 +238,8 @@ applied to every tier, or a list of five such tuples, one per tier. For a 4-slot
 
 ```python
 n_slots = 4
-full_qual_config   = [(0, n_slots)] * 4 + [(n_slots, 0)]   # quality everywhere, prod at the top
-full_prod_config   = [(n_slots, 0)] * 5                    # productivity everywhere
+full_qual_config = [(0, n_slots)] * 4 + [(n_slots, 0)]  # quality everywhere, prod at the top
+full_prod_config = [(n_slots, 0)] * 5  # productivity everywhere
 optimal_leg_config = [(n_slots - 1, 1)] * 4 + [(n_slots, 0)]  # 3 prod + 1 qual below legendary
 ```
 
@@ -247,6 +247,18 @@ optimal_leg_config = [(n_slots - 1, 1)] * 4 + [(n_slots, 0)]  # 3 prod + 1 qual 
 instead of being recycled or re-assembled. `None` means "never extract" (recycle or assemble everything).
 
 </details>
+
+## 🆕 Recycle time and Factorio 2.1
+
+Up to Factorio 2.1.12, an item's recycling recipe took 1/16 of its crafting time, and that is still the default here
+(`recycle_time=None` means `recipe_time / 16`). From **2.1.13**, recycle time scales with the item's result count, so
+for some items (concrete is about 10× faster) the 1/16 rule is wrong. Pass the base time of the item's recycling
+recipe from the game as `recycle_time` to get accurate crafting times and bottleneck figures. Flows and quality
+probabilities are unaffected, only the timing.
+
+> [!WARNING]
+> Factorio 2.1.7 stopped quality modules working in asteroid reprocessing, so asteroid crushers can no longer be
+> used as a quality-upcycling loop. Crusher support (`is_asteroid_crusher`) has been removed.
 
 ## 🛠️ Development
 

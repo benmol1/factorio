@@ -30,7 +30,12 @@ def create_transition_matrix(assembler_matrix: np.ndarray, recycler_matrix: np.n
 
 
 def create_crafting_time_vector(
-    speed_assembler: list, num_assemblers: list, speed_recycler: float, num_recyclers: int, recipe_time: float
+    speed_assembler: list,
+    num_assemblers: list,
+    speed_recycler: float,
+    num_recyclers: int,
+    recipe_time: float,
+    recycle_time: float | None = None,
 ) -> np.ndarray:
     """Create a vector of crafting times per tier for assemblers and recyclers.
 
@@ -40,13 +45,17 @@ def create_crafting_time_vector(
         speed_recycler: Speed of the recyclers.
         num_recyclers: Number of recyclers
         recipe_time: Base recipe crafting time in seconds.
+        recycle_time: Base time in seconds of the product's recycling recipe. Defaults to `recipe_time / 16`, which
+            was the rule before Factorio 2.1.13 started scaling recycle time with the item's result count.
 
     Returns:
         Vector of effective crafting times for each tier (assemblers + recyclers).
     """
     speed_assembler = np.array(speed_assembler)
+    if recycle_time is None:
+        recycle_time = recipe_time / 16
 
-    res = list(recipe_time / speed_assembler) + [recipe_time / (16 * speed_recycler)] * NUM_TIERS
+    res = list(recipe_time / speed_assembler) + [recycle_time / speed_recycler] * NUM_TIERS
     num_entities_list = num_assemblers + ([num_recyclers] * NUM_TIERS)
     num_entities = np.array(num_entities_list)
 
@@ -183,6 +192,7 @@ def assembler_recycler_loop(
     speed_recycler: float = 0.5,
     num_assemblers: list = [1] * NUM_TIERS,
     num_recyclers: int = 1,
+    recycle_time: float | None = None,
     verbose: bool = False,
 ) -> np.array:
     """Simulate an assembler-recycler loop to calculate quality tier flows.
@@ -207,6 +217,8 @@ def assembler_recycler_loop(
         speed_recycler: Speed of the recyclers.
         num_assemblers: List of assembler counts per quality tier.
         num_recyclers: Number of recyclers.
+        recycle_time: Base time in seconds of the product's recycling recipe. Factorio 2.1.13+ scales this with the
+            item's result count, so read it from the game. Defaults to `recipe_time / 16` (the pre-2.1.13 rule).
         verbose: If True, print debug information.
 
     Returns:
@@ -238,7 +250,7 @@ def assembler_recycler_loop(
     )
 
     crafting_time_vector = create_crafting_time_vector(
-        speed_assemblers, num_assemblers, speed_recycler, num_recyclers, recipe_time
+        speed_assemblers, num_assemblers, speed_recycler, num_recyclers, recipe_time, recycle_time
     )
 
     max_flow_vector = create_max_flow_vector(crafting_time_vector, recipe_ratio)
