@@ -1,3 +1,13 @@
+[project]
+name = "factorio"
+version = "0.1.0"
+description = "Simulations of Factorio's quality system recycling loops"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy>=2.5.3",
+    "pandas>=3.0.6",
+]
+
 [tool.ruff]
 line-length = 120
 target-version = "py312"
@@ -29,3 +39,9 @@ indent-style = "space"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.17.0",
+]
