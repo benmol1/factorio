@@ -9,13 +9,12 @@ from src.quality.utils import NUM_TIERS, create_production_matrix
 
 
 @lru_cache
-def recycler_matrix(quality_chance: float, quality_to_keep: int = 5, is_asteroid_crusher: bool = False) -> np.ndarray:
+def recycler_matrix(quality_chance: float, quality_to_keep: int = 5) -> np.ndarray:
     """Create a recycler transition matrix for the given quality chance.
 
     Args:
         quality_chance: Quality chance of the recyclers as a decimal.
         quality_to_keep: Minimum quality tier to extract (1-5). Defaults to 5 (legendary).
-        is_asteroid_crusher: If True, uses 0.8 production ratio instead of 0.25.
 
     Returns:
         NxN production matrix for the recycler.
@@ -23,8 +22,8 @@ def recycler_matrix(quality_chance: float, quality_to_keep: int = 5, is_asteroid
     assert quality_chance > 0
     assert isinstance(quality_to_keep, int) and 1 <= quality_to_keep <= 5
 
-    # Set the production ratio for this loop
-    production_ratio = 0.8 if is_asteroid_crusher else 0.25
+    # Recyclers return 25% of the recipe's ingredients
+    production_ratio = 0.25
 
     recycling_rows = quality_to_keep - 1
     saving_rows = NUM_TIERS - recycling_rows
@@ -40,7 +39,7 @@ def recycler_loop(
     num_recyclers: np.array | int = 1,
     recipe_time: float = 1.0,
     recipe_ratio: float = 1.0,
-    is_asteroid_crusher: bool = False,
+    recycle_time: float | None = None,
     verbose: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, float]:
     """Simulate a pure recycler loop to calculate quality tier flows.
@@ -57,7 +56,8 @@ def recycler_loop(
         num_recyclers: Number of recyclers (int or array per tier).
         recipe_time: Base recipe crafting time in seconds.
         recipe_ratio: Ratio of products to ingredients.
-        is_asteroid_crusher: If True, uses asteroid crusher parameters.
+        recycle_time: Base time in seconds of the item's recycling recipe. Factorio 2.1.13+ scales this with the
+            item's result count, so read it from the game. Defaults to `recipe_time / 16` (the pre-2.1.13 rule).
         verbose: If True, print debug information.
 
     Returns:
@@ -69,8 +69,8 @@ def recycler_loop(
     if isinstance(num_recyclers, int):
         num_recyclers = np.array([num_recyclers] * NUM_TIERS)
 
-    transition_matrix = recycler_matrix(quality_chance, quality_to_keep, is_asteroid_crusher)
-    crafting_time_vector = create_crafting_time_vector(speed_recycler, num_recyclers, recipe_time, is_asteroid_crusher)
+    transition_matrix = recycler_matrix(quality_chance, quality_to_keep)
+    crafting_time_vector = create_crafting_time_vector(speed_recycler, num_recyclers, recipe_time, recycle_time)
 
     if verbose:
         print("## Transition matrix:\n", transition_matrix)
@@ -117,7 +117,7 @@ def create_crafting_time_vector(
     speed_recycler: float = 0.4,
     num_recyclers: np.ndarray | None = None,
     recipe_time: float = 1,
-    is_asteroid_crusher: bool = False,
+    recycle_time: float | None = None,
 ) -> np.ndarray:
     """Create a vector of crafting times per tier for recyclers.
 
@@ -125,22 +125,19 @@ def create_crafting_time_vector(
         speed_recycler: Speed of the recyclers (0.4 default for normal + quality modules).
         num_recyclers: Number of recyclers per tier. Defaults to 1 per tier.
         recipe_time: Base recipe crafting time in seconds.
-        is_asteroid_crusher: If True, removes the 16x recycling speed bonus.
+        recycle_time: Base time in seconds of the item's recycling recipe. Defaults to `recipe_time / 16`, which
+            was the rule before Factorio 2.1.13 started scaling recycle time with the item's result count.
 
     Returns:
         Vector of effective crafting times for each tier.
     """
     if num_recyclers is None:
         num_recyclers = np.array([1.0] * NUM_TIERS)
-    res = [recipe_time / (16 * speed_recycler)] * NUM_TIERS
-    res = np.array(res) / num_recyclers
+    if recycle_time is None:
+        recycle_time = recipe_time / 16
+    res = [recycle_time / speed_recycler] * NUM_TIERS
 
-    # If this is an asteroid crusher, re-multiply the crafting time by 16 because that discount
-    # only applies to pure recycling
-    if is_asteroid_crusher:
-        res *= 16
-
-    return np.array(res)
+    return np.array(res) / num_recyclers
 
 
 def compute_crafting_time(
@@ -179,7 +176,6 @@ def get_production_rate(
     input_vector: np.ndarray,
     output_flows: np.ndarray,
     transition_matrix: np.ndarray,
-    is_asteroid_crusher: bool = False,
 ) -> np.ndarray:
     """Compute the production rate at each quality level.
 
@@ -191,7 +187,6 @@ def get_production_rate(
         input_vector: Initial input flow rates per tier.
         output_flows: Total output flow rates from the simulation.
         transition_matrix: The transition matrix used in the simulation.
-        is_asteroid_crusher: If True, applies asteroid crusher production counting.
 
     Returns:
         Production rate per quality tier.
@@ -199,21 +194,11 @@ def get_production_rate(
     # In order to provide the input_vector, it must first be produced somewhere
     production_rate = input_vector
 
-    # For typical recycling loops, items are only produced by upcycling from lower tiers.
-    # For asteroid crushers, equal-tier production events happen frequently.
-    # ~50% of asteroid reprocessing crafts return an equiv-tier product (the other 50%
-    # return the same item, so there's no item-created event).
-    # We apply a 0.5 scalar for on-diagonal transitions for asteroid crushers.
+    # Items are only produced by upcycling from lower tiers, so the on-diagonal (same-tier) transitions don't count
     for ii in range(0, NUM_TIERS):
         prod_rate = 0
-        for jj in range(ii + 1):
-            if jj == ii:
-                scalar = 0
-                if is_asteroid_crusher:
-                    scalar = 0.5
-            else:
-                scalar = 1
-            prod_rate += output_flows[jj] * transition_matrix[jj][ii] * scalar
+        for jj in range(ii):
+            prod_rate += output_flows[jj] * transition_matrix[jj][ii]
         production_rate[ii] += prod_rate
 
     return production_rate
@@ -260,7 +245,7 @@ if __name__ == "__main__":
     print("## Flow per minute:")
     print(flows * 60)
 
-    production_rate = get_production_rate(input_vector, flows, transition_matrix, is_asteroid_crusher=False)
+    production_rate = get_production_rate(input_vector, flows, transition_matrix)
 
     print("## Production rates per minute:")
     print(production_rate * 60)

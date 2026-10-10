@@ -9,7 +9,7 @@ from src.quality.assembler_recycler_loop import (
     get_assembler_parameters,
     get_recycler_parameters,
 )
-from src.quality.pure_recycler_loop import recycler_loop, recycler_matrix
+from src.quality.pure_recycler_loop import create_crafting_time_vector, recycler_loop, recycler_matrix
 
 
 class TestRecyclerMatrix:
@@ -30,12 +30,6 @@ class TestRecyclerMatrix:
         """Kept tier row should be all zeros."""
         mat = recycler_matrix(0.25, quality_to_keep=5)
         np.testing.assert_array_equal(mat[4], np.zeros(NUM_TIERS))
-
-    def test_asteroid_crusher_production_ratio(self):
-        """Asteroid crusher should use 0.8 production ratio."""
-        mat = recycler_matrix(0.25, quality_to_keep=5, is_asteroid_crusher=True)
-        for row in range(4):
-            assert abs(mat[row].sum() - 0.8) < 1e-10
 
 
 class TestRecyclerLoop:
@@ -197,3 +191,38 @@ class TestAssemblerRecyclerLoop:
             assembler_modules_config=config,
         )
         assert flows.shape == (NUM_TIERS * 2,)
+
+
+class TestRecycleTime:
+    """Tests for the recycle_time override (Factorio 2.1.13+ scales recycle time with result count)."""
+
+    def test_default_is_recipe_time_over_16(self):
+        """Without recycle_time, recycling takes recipe_time / 16."""
+        vec = create_crafting_time_vector(speed_recycler=0.5, recipe_time=8)
+        np.testing.assert_allclose(vec, np.full(NUM_TIERS, (8 / 16) / 0.5))
+
+    def test_explicit_recycle_time_overrides_default(self):
+        """An explicit recycle_time is used as-is, ignoring recipe_time."""
+        vec = create_crafting_time_vector(speed_recycler=0.5, recipe_time=8, recycle_time=0.1)
+        np.testing.assert_allclose(vec, np.full(NUM_TIERS, 0.1 / 0.5))
+
+    def test_recycle_time_scales_total_crafting_time(self):
+        """Halving recycle_time halves the loop's total crafting time without changing flows."""
+        flows_a, _, time_a = recycler_loop(100.0, quality_chance=0.25, recycle_time=1.0)
+        flows_b, _, time_b = recycler_loop(100.0, quality_chance=0.25, recycle_time=0.5)
+        np.testing.assert_allclose(flows_a, flows_b)
+        assert abs(time_b - time_a / 2) < 1e-9
+
+    def test_assembler_recycler_loop_accepts_recycle_time(self):
+        """The assembler-recycler loop's recycler crafting times follow recycle_time."""
+        kwargs = dict(
+            input_vector=10.0,
+            assembler_modules_config=(0, 4),
+            product_quality_to_keep=None,
+            recipe_time=16,
+            speed_recycler=1,
+        )
+        _, _, _, max_flow_default = assembler_recycler_loop(**kwargs)
+        _, _, _, max_flow_fast = assembler_recycler_loop(**kwargs, recycle_time=0.5)
+        # Default recycle time is 16 / 16 = 1s, so halving it doubles the recycler max flow
+        np.testing.assert_allclose(max_flow_fast[NUM_TIERS:], 2 * max_flow_default[NUM_TIERS:])
