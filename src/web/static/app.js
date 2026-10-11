@@ -25,7 +25,8 @@ function el(tag, attrs = {}, ...children) {
 
 function fmt(x, digits = 2) {
   if (!isFinite(x)) return "–";
-  if (x !== 0 && Math.abs(x) < 0.01) return x.toExponential(1);
+  // Show tiny values in scientific notation rather than letting them round to zero
+  if (x !== 0 && Math.abs(x) < 0.5 * 10 ** -digits) return x.toExponential(1);
   return x.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
 const pct = (x, digits = 1) => `${fmt(x * 100, digits)}%`;
@@ -127,11 +128,13 @@ function initForms() {
       el("tr", {},
         el("td", { html: tierName(i) }),
         el("td", {}, el("input", { type: "number", min: "1", value: "1", name: `count_${i}` })),
+        el("td", {}, el("span", { class: "quality-picker", "data-name": `machine_quality_${i}` })),
         el("td", {}, el("input", { type: "number", min: "0", value: "0", name: `prod_${i}` })),
         el("td", {}, el("input", { type: "number", min: "0", value: "4", name: `qual_${i}` })),
       ),
     );
   });
+  $$(".quality-picker", tbody).forEach((s) => buildQualityPicker(s, 0));
   tbody.addEventListener("input", checkSlots);
   updateMachine();
 
@@ -234,12 +237,12 @@ const PRESETS = {
     updateRecipe();
     f.machine.value = "assembling-machine-3";
     updateMachine();
-    setQuality($(".quality-picker[data-name=machine_quality]", f), 4);
     f.research_prod.value = 0;
     setModule($(".module-picker[data-name=pmod]", f), 3, 4);
     setModule($(".module-picker[data-name=qmod]", f), 3, 4);
     [40, 4, 2, 1, 1].forEach((n, i) => {
       f[`count_${i}`].value = n;
+      setQuality($(`.quality-picker[data-name=machine_quality_${i}]`, f), 4);
       f[`prod_${i}`].value = i === 4 ? 4 : 0;
       f[`qual_${i}`].value = i === 4 ? 0 : 4;
     });
@@ -310,7 +313,7 @@ function renderRecycler(d, out) {
       <div class="stat-card q4"><div class="label">Legendary output</div>
         <div class="value">${fmt(d.production_rate[4] * 3600, 1)} <small>/ hour</small></div></div>
       <div class="stat-card q${keepFrom}"><div class="label">Total kept output (${TIERS[keepFrom]}+)</div>
-        <div class="value">${fmt(output * 60, 2)} <small>/ min</small></div></div>
+        <div class="value">${fmt(output * 60, 1)} <small>/ min</small></div></div>
       ${loadCard("Recycler load", d.recycler_load)}
     </div>
     <div class="section-title"><img src="${ICON("recycler")}" alt="">Products</div>
@@ -320,8 +323,8 @@ function renderRecycler(d, out) {
         ${d.flows.map((flow, i) => `
           <tr class="q${i}">
             <td>${tierName(i)}</td>
-            <td class="num">${fmt(flow, 3)}</td>
-            <td class="num">${fmt(d.production_rate[i] * 60, 2)}</td>
+            <td class="num">${fmt(flow, 1)}</td>
+            <td class="num">${fmt(d.production_rate[i] * 60, 1)}</td>
             <td class="num">${fmt(d.production_rate[i] * 3600, 1)}</td>
             <td>${statusTag(d.kept[i])}</td>
           </tr>`).join("")}
@@ -343,10 +346,10 @@ async function calculateAssembler() {
     input_rates: getTierInputs($("[data-tier-inputs]", f)),
     machine: f.machine.value,
     recipe: f.recipe.value || null,
-    machine_quality: getQuality($(".quality-picker[data-name=machine_quality]", f)),
     research_prod_bonus: Number(f.research_prod.value) / 100,
     tiers: TIERS.map((_, i) => ({
       count: Number(f[`count_${i}`].value),
+      machine_quality: getQuality($(`.quality-picker[data-name=machine_quality_${i}]`, f)),
       prod_modules: Number(f[`prod_${i}`].value),
       quality_modules: Number(f[`qual_${i}`].value),
     })),
@@ -386,16 +389,16 @@ function renderAssembler(d, out, machine) {
     </div>
 
     <div class="section-title"><img src="${ICON("recycler")}" alt="">Ingredients
-      <span class="hint" style="margin-left:auto">kept: ${fmt(keptIng * 60, 2)} / min</span></div>
+      <span class="hint" style="margin-left:auto">kept: ${fmt(keptIng * 60, 1)} / min</span></div>
     <table class="results-table">
       <thead><tr><th>Quality</th><th>Flow / s</th><th>Flow / min</th><th>Assembler capacity / s</th><th>Assembler load</th><th>Status</th></tr></thead>
       <tbody>
         ${ing.flows.map((flow, i) => `
           <tr class="q${i}">
             <td>${tierName(i)}</td>
-            <td class="num">${fmt(flow, 3)}</td>
-            <td class="num">${fmt(flow * 60, 2)}</td>
-            <td class="num">${ing.kept[i] ? "–" : fmt(ing.max_flow[i], 2)}</td>
+            <td class="num">${fmt(flow, 1)}</td>
+            <td class="num">${fmt(flow * 60, 1)}</td>
+            <td class="num">${ing.kept[i] ? "–" : fmt(ing.max_flow[i], 1)}</td>
             <td>${ing.kept[i] ? "" : loadBar(loads[i])}</td>
             <td>${statusTag(ing.kept[i], "Assembled")}</td>
           </tr>`).join("")}
@@ -403,15 +406,15 @@ function renderAssembler(d, out, machine) {
     </table>
 
     <div class="section-title"><img src="${ICON(machine.icon)}" alt="">Products
-      <span class="hint" style="margin-left:auto">kept: ${fmt(keptProd * 60, 2)} / min</span></div>
+      <span class="hint" style="margin-left:auto">kept: ${fmt(keptProd * 60, 1)} / min</span></div>
     <table class="results-table">
       <thead><tr><th>Quality</th><th>Flow / s</th><th>Flow / min</th><th>Flow / hour</th><th>Status</th></tr></thead>
       <tbody>
         ${prod.flows.map((flow, i) => `
           <tr class="q${i}">
             <td>${tierName(i)}</td>
-            <td class="num">${fmt(flow, 3)}</td>
-            <td class="num">${fmt(flow * 60, 2)}</td>
+            <td class="num">${fmt(flow, 1)}</td>
+            <td class="num">${fmt(flow * 60, 1)}</td>
             <td class="num">${fmt(flow * 3600, 1)}</td>
             <td>${statusTag(prod.kept[i], "Recycled")}</td>
           </tr>`).join("")}
@@ -433,7 +436,7 @@ function renderAssembler(d, out, machine) {
     </table>
     <p class="machine-stats">
       Recyclers: ${pct(d.derived.recycler_quality_chance)} quality chance, speed ${fmt(d.derived.recycler_speed, 2)},
-      handling ${fmt(d.recycler.flow, 2)} of ${fmt(d.recycler.max_flow, 2)} products / s.
+      handling ${fmt(d.recycler.flow, 1)} of ${fmt(d.recycler.max_flow, 1)} products / s.
     </p>`;
 }
 

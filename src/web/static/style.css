@@ -211,3 +211,4 @@ table.results-table { width: 100%; border-collapse: collapse; background: var(--
 
 footer { text-align: center; color: #6d6862; font-size: 12px; padding: 16px; }
 input[readonly] { opacity: 0.6; cursor: not-allowed; }
+.tier-table .quality-picker button { width: 22px; height: 22px; }

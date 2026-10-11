@@ -18,9 +18,10 @@ def u238_request(**overrides):
     req = {
         "input_rates": [8, 0, 0, 0, 0],
         "machine": "assembling-machine-3",
-        "machine_quality": LEGENDARY,
-        "tiers": [{"count": n, "prod_modules": 0, "quality_modules": 4} for n in [40, 4, 2, 1]]
-        + [{"count": 1, "prod_modules": 4, "quality_modules": 0}],
+        "tiers": [
+            {"count": n, "machine_quality": LEGENDARY, "prod_modules": 0, "quality_modules": 4} for n in [40, 4, 2, 1]
+        ]
+        + [{"count": 1, "machine_quality": LEGENDARY, "prod_modules": 4, "quality_modules": 0}],
         "prod_module": LEGENDARY_Q3,
         "quality_module": LEGENDARY_Q3,
         "recycler": {"quality": LEGENDARY, "count": 8, "quality_module": LEGENDARY_Q3},

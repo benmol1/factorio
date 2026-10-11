@@ -63,6 +63,7 @@ class TierSetup(BaseModel):
     """Machines and modules used to craft ingredients of one quality tier."""
 
     count: Annotated[int, Field(ge=1)] = 1
+    machine_quality: Tier = 0
     prod_modules: Annotated[int, Field(ge=0)] = 0
     quality_modules: Annotated[int, Field(ge=0)] = 0
 
@@ -74,7 +75,6 @@ class AssemblerLoopRequest(BaseModel):
     machine: str = "assembling-machine-3"
     # Optional, only used to check the machine can craft it; times and ratios are passed explicitly
     recipe: str | None = None
-    machine_quality: Tier = 0
     research_prod_bonus: Annotated[float, Field(ge=0)] = 0.0
     tiers: Annotated[list[TierSetup], Field(min_length=NUM_TIERS, max_length=NUM_TIERS)]
     prod_module: ModuleChoice = ModuleChoice()
@@ -164,7 +164,7 @@ def run_assembler_loop(req: AssemblerLoopRequest) -> dict:
     speeds = [
         machine_speed(
             machine.speed,
-            req.machine_quality,
+            t.machine_quality,
             t.prod_modules * prod_penalty + t.quality_modules * QUALITY_MODULE_SPEED_PENALTY,
         )
         for t in req.tiers
