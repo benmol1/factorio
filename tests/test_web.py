@@ -91,3 +91,28 @@ def test_separate_recycler_modules_change_result():
     base = client.post("/api/assembler-loop", json=u238_request()).json()
     weak = client.post("/api/assembler-loop", json=weaker).json()
     assert weak["ingredients"]["flows"][LEGENDARY] < base["ingredients"]["flows"][LEGENDARY]
+
+
+def test_recipes_served():
+    """Recipe data comes with the game data."""
+    data = client.get("/api/game-data").json()
+    toolbelt = data["recipes"]["toolbelt-equipment"]
+    assert toolbelt["time"] == 10
+    assert toolbelt["ingredients"] == {"advanced-circuit": 3, "carbon-fiber": 10}
+    assert data["recipes"]["carbon-fiber"]["machines"] == ["biochamber"]
+    assert all(m in data["machines"] for r in data["recipes"].values() for m in r["machines"])
+
+
+def test_recipe_ratio():
+    """The loop's ratio is products per unit of the upcycled ingredient."""
+    from src.web.recipes import RECIPES
+
+    assert RECIPES["toolbelt-equipment"].ratio("carbon-fiber") == pytest.approx(0.1)
+    assert RECIPES["carbon-fiber"].ratio("carbon") == pytest.approx(1)
+
+
+def test_assembler_loop_rejects_wrong_machine_for_recipe():
+    """A recipe can only be crafted in its own machines."""
+    assert client.post("/api/assembler-loop", json=u238_request(recipe="carbon-fiber")).status_code == 422
+    ok = u238_request(recipe="toolbelt-equipment", recipe_ratio=0.1)
+    assert client.post("/api/assembler-loop", json=ok).status_code == 200

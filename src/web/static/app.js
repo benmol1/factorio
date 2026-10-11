@@ -115,6 +115,12 @@ function initForms() {
   machineSelect.value = "assembling-machine-3";
   machineSelect.addEventListener("change", updateMachine);
 
+  // Recipe dropdown
+  const form = $("#form-assembler");
+  for (const [key, r] of Object.entries(GAME.recipes)) form.recipe.append(el("option", { value: key }, r.name));
+  form.recipe.addEventListener("change", updateRecipe);
+  form.ingredient.addEventListener("change", updateIngredient);
+
   const tbody = $("#tier-setup");
   TIERS.forEach((_, i) => {
     tbody.append(
@@ -151,6 +157,51 @@ function updateMachine() {
   checkSlots();
 }
 
+function updateRecipe() {
+  const form = $("#form-assembler");
+  const r = GAME.recipes[form.recipe.value];
+  $(".recipe-icon", form).src = r ? ICON(r.icon) : ICON("assembling_machine_3");
+
+  // Only offer machines that can craft the recipe
+  for (const opt of form.machine.options) opt.disabled = !!r && !r.machines.includes(opt.value);
+  if (r && !r.machines.includes(form.machine.value)) {
+    form.machine.value = r.machines.find((m) => GAME.machines[m]);
+    updateMachine();
+  }
+
+  form.ingredient.innerHTML = "";
+  form.ingredient.disabled = !r;
+  form.recipe_time.readOnly = form.recipe_ratio.readOnly = !!r;
+  if (!r) {
+    $(".ingredient-icon", form).removeAttribute("src");
+    $("#ingredient-hint").textContent = "";
+    return;
+  }
+  for (const [item, n] of Object.entries(r.ingredients)) {
+    form.ingredient.append(el("option", { value: item }, `${n} × ${GAME.items[item].name}`));
+  }
+  // Default to the ingredient with the highest input flow requirement
+  form.ingredient.value = Object.entries(r.ingredients).reduce((a, b) => (b[1] > a[1] ? b : a))[0];
+  form.recipe_time.value = r.time;
+  updateIngredient();
+}
+
+function updateIngredient() {
+  const form = $("#form-assembler");
+  const r = GAME.recipes[form.recipe.value];
+  const item = form.ingredient.value;
+  $(".ingredient-icon", form).src = ICON(GAME.items[item].icon);
+  const products = Object.values(r.products).reduce((a, b) => a + b, 0);
+  form.recipe_ratio.value = +(products / r.ingredients[item]).toPrecision(6);
+  // Other ingredients are assumed to be supplied at matching quality, outside the loop
+  const others = Object.entries(r.ingredients).filter(([k]) => k !== item);
+  $("#ingredient-hint").textContent = others.length
+    ? `Flows are per ${GAME.items[item].name}. Each one also needs ` +
+      others.map(([k, n]) => `${fmt(n / r.ingredients[item], 2)} ${GAME.items[k].name}`).join(", ") +
+      " of the same quality, supplied separately."
+    : "";
+}
+
 function checkSlots() {
   const form = $("#form-assembler");
   const m = GAME.machines[form.machine.value];
@@ -179,6 +230,8 @@ const PRESETS = {
   u238() {
     const f = $("#form-assembler");
     setTierInputs($("[data-tier-inputs]", f), [8, 0, 0, 0, 0]);
+    f.recipe.value = "";
+    updateRecipe();
     f.machine.value = "assembling-machine-3";
     updateMachine();
     setQuality($(".quality-picker[data-name=machine_quality]", f), 4);
@@ -289,6 +342,7 @@ async function calculateAssembler() {
   const data = await post("/api/assembler-loop", {
     input_rates: getTierInputs($("[data-tier-inputs]", f)),
     machine: f.machine.value,
+    recipe: f.recipe.value || null,
     machine_quality: getQuality($(".quality-picker[data-name=machine_quality]", f)),
     research_prod_bonus: Number(f.research_prod.value) / 100,
     tiers: TIERS.map((_, i) => ({

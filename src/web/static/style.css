@@ -210,3 +210,4 @@ table.results-table { width: 100%; border-collapse: collapse; background: var(--
 .machine-stats { margin-top: 6px; color: var(--muted); font-size: 13px; }
 
 footer { text-align: center; color: #6d6862; font-size: 12px; padding: 16px; }
+input[readonly] { opacity: 0.6; cursor: not-allowed; }

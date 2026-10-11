@@ -26,6 +26,7 @@ from src.web.game_data import (
     machine_speed,
     recycler_speed,
 )
+from src.web.recipes import RECIPES
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -71,6 +72,8 @@ class AssemblerLoopRequest(BaseModel):
 
     input_rates: TierVector
     machine: str = "assembling-machine-3"
+    # Optional, only used to check the machine can craft it; times and ratios are passed explicitly
+    recipe: str | None = None
     machine_quality: Tier = 0
     research_prod_bonus: Annotated[float, Field(ge=0)] = 0.0
     tiers: Annotated[list[TierSetup], Field(min_length=NUM_TIERS, max_length=NUM_TIERS)]
@@ -89,6 +92,11 @@ class AssemblerLoopRequest(BaseModel):
         """Reject unknown machines and module counts that don't fit in the machine."""
         if self.machine not in MACHINES:
             raise ValueError(f"Unknown machine '{self.machine}'")
+        if self.recipe is not None:
+            if self.recipe not in RECIPES:
+                raise ValueError(f"Unknown recipe '{self.recipe}'")
+            if self.machine not in RECIPES[self.recipe].machines:
+                raise ValueError(f"{MACHINES[self.machine].name} can't craft {RECIPES[self.recipe].name}")
         slots = MACHINES[self.machine].slots
         for i, tier in enumerate(self.tiers):
             if tier.prod_modules + tier.quality_modules > slots:

@@ -116,6 +116,13 @@
 
         <fieldset class="inset">
           <legend>Recipe</legend>
+          <label>Recipe
+            <span class="with-icon"><img class="recipe-icon" alt=""><select name="recipe"><option value="">Custom</option></select></span>
+          </label>
+          <label>Critical ingredient
+            <span class="with-icon"><img class="ingredient-icon" alt=""><select name="ingredient" disabled></select></span>
+          </label>
+          <p class="hint" id="ingredient-hint"></p>
           <label>Crafting time (s) <input type="number" name="recipe_time" min="0.01" step="any" value="10"></label>
           <label>Products per ingredient <input type="number" name="recipe_ratio" min="0.001" step="any" value="1"></label>
           <label>Recycle time (s) <input type="number" name="recycle_time" min="0.001" step="any" placeholder="crafting time ÷ 16"></label>

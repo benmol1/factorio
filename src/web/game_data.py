@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 
 from src.quality.utils import NUM_TIERS
+from src.web.recipes import recipe_data
 
 # Machine speed multiplier per machine quality (Normal → Legendary)
 QUALITY_SPEED_MULTIPLIER = [1.0, 1.3, 1.6, 1.9, 2.5]
@@ -32,6 +33,7 @@ class Machine:
 MACHINES = {
     "assembling-machine-2": Machine("Assembling machine 2", 0.75, 2, 0.0, "assembling_machine_2"),
     "assembling-machine-3": Machine("Assembling machine 3", 1.25, 4, 0.0, "assembling_machine_3"),
+    "electric-furnace": Machine("Electric furnace", 2.0, 2, 0.0, "electric_furnace"),
     "chemical-plant": Machine("Chemical plant", 1.0, 3, 0.0, "chemical_plant"),
     "centrifuge": Machine("Centrifuge", 1.0, 2, 0.0, "centrifuge"),
     "electromagnetic-plant": Machine("Electromagnetic plant", 2.0, 5, 0.5, "electromagnetic_plant"),
@@ -74,4 +76,5 @@ def game_data() -> dict:
         "quality_module_bonus": QUALITY_MODULE_BONUS,
         "prod_module_bonus": PROD_MODULE_BONUS,
         "recycler_slots": RECYCLER_SLOTS,
+        **recipe_data(),
     }
