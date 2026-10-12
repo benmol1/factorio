@@ -308,27 +308,27 @@ if __name__ == "__main__":
     pd.options.display.float_format = "{:.2f}".format
 
     n_slots = 4
-    base_prod = 1.0
+    base_prod = 1.5
     full_qual_config = [(0, n_slots)] * (NUM_TIERS - 1) + [(n_slots, 0)]
     full_prod_config = [(n_slots, 0)] * NUM_TIERS
     optimal_leg_config = [(n_slots - 1, 1)] * (NUM_TIERS - 1) + [(n_slots, 0)]
 
-    # AR loop for producing legendary u-238 via uranium ammo
-    input_vector = np.array([8.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+    # AR loop for producing legendary gears via fast underground belts
+    input_vector = np.array([100.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
     results = assembler_recycler_loop(
         input_vector=input_vector,
         assembler_modules_config=full_qual_config,
         product_quality_to_keep=None,
         ingredient_quality_to_keep=NUM_TIERS,
         base_prod_bonus=base_prod,
-        recipe_ratio=1,  # NB: ratio of products:ingredients in the recipe
+        recipe_ratio=1/20,  # NB: ratio of products:ingredients in the recipe
         prod_module_bonus=0,
         qual_module_bonus=BEST_QUAL_MODULE,
-        speed_assemblers=[2.5, 2.5, 2.5, 2.5, 1],  # Legendary assemblers
-        speed_recycler=1,  # legendary recyclers
-        recipe_time=10,
-        num_assemblers=[40, 4, 2, 1, 1],
-        num_recyclers=8,
+        speed_assemblers=[8, 3.2, 3.2, 3.2, 3.2],  # Legendary foundries in the normal tier, normal otherwise with 4x modules
+        speed_recycler=0.76,  # epic recyclers with 4x quality modules each
+        recipe_time=2,
+        num_assemblers=[2, 1, 1, 1, 1],
+        num_recyclers=2,
         verbose=True,
     )
 
