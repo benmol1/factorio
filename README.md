@@ -93,7 +93,7 @@ keys that can craft it:
 ),
 ```
 
-Current recipes: carbon fiber and toolbelt equipment.
+Current recipes: carbon fiber, toolbelt equipment, pipe, pipe to ground (assembler and foundry casting), fast underground belt, low density structure (assembler and foundry casting), electromagnetic plant and coal synthesis.
 
 > [!NOTE]
 > Run the demos as modules (`python -m ...`) from the repo root, because the code imports from `src.quality`.
