@@ -18,59 +18,32 @@
 
   <main>
     <nav class="tabs" role="tablist">
-      <button class="tab active" data-tab="recycler" role="tab">
-        <img src="/static/icons/recycler.png" alt=""> Recycler loop
-      </button>
-      <button class="tab" data-tab="assembler" role="tab">
+      <button class="tab active" data-tab="assembler" role="tab">
         <img src="/static/icons/assembling_machine_3.png" alt=""> Assembler → recycler loop
+      </button>
+      <button class="tab" data-tab="recycler" role="tab">
+        <img src="/static/icons/recycler.png" alt=""> Recycler loop
       </button>
     </nav>
 
-    <!-- Pure recycler loop -->
-    <section class="tab-panel active" id="tab-recycler">
-      <form class="panel inputs" id="form-recycler">
-        <h2>Inputs</h2>
-        <div class="presets">
-          Preset:
-          <button type="button" class="btn small" data-preset="tungsten">
-            <img src="/static/icons/tungsten_ore.png" alt=""> Tungsten ore
-          </button>
-        </div>
-
-        <fieldset class="inset">
-          <legend>Input items per second</legend>
-          <div class="tier-grid" data-tier-inputs="input_rates"></div>
-        </fieldset>
-
-        <fieldset class="inset">
-          <legend><img src="/static/icons/recycler.png" alt=""> Recyclers</legend>
-          <label>Count <input type="number" name="rec_count" min="1" value="5"></label>
-          <label>Recycler quality <span class="quality-picker" data-name="rec_quality"></span></label>
-          <label>Quality module
-            <span class="module-picker" data-name="rec_qmod" data-kind="quality"></span>
-          </label>
-        </fieldset>
-
-        <fieldset class="inset">
-          <legend>Recipe</legend>
-          <label>Crafting time (s) <input type="number" name="recipe_time" min="0.01" step="any" value="1"></label>
-          <label>Recycle time (s) <input type="number" name="recycle_time" min="0.001" step="any" placeholder="crafting time ÷ 16"></label>
-          <label>Keep at or above <span class="quality-picker" data-name="keep"></span></label>
-        </fieldset>
-
-        <button type="submit" class="btn confirm">Calculate</button>
-      </form>
-
-      <div class="panel results" id="results-recycler">
-        <h2>Results</h2>
-        <p class="placeholder">Set your inputs and press <b>Calculate</b>.</p>
-      </div>
-    </section>
-
     <!-- Assembler → recycler loop -->
-    <section class="tab-panel" id="tab-assembler">
+    <section class="tab-panel active" id="tab-assembler">
       <form class="panel inputs" id="form-assembler">
         <h2>Inputs</h2>
+        <fieldset class="inset">
+          <legend>Recipe</legend>
+          <label>Recipe
+            <span class="with-icon"><img class="recipe-icon" alt=""><select name="recipe"><option value="">Custom</option></select></span>
+          </label>
+          <label>Critical ingredient
+            <span class="with-icon"><img class="ingredient-icon" alt=""><select name="ingredient" disabled></select></span>
+          </label>
+          <p class="hint" id="ingredient-hint"></p>
+          <label>Crafting time (s) <input type="number" name="recipe_time" min="0.01" step="any" value="10"></label>
+          <label>Products per ingredient <input type="number" name="recipe_ratio" min="0.001" step="any" value="1"></label>
+          <label>Recycle time (s) <input type="number" name="recycle_time" min="0.001" step="any" placeholder="crafting time ÷ 16"></label>
+        </fieldset>
+
         <div class="presets">
           Preset:
           <button type="button" class="btn small" data-preset="u238">
@@ -114,17 +87,7 @@
         </fieldset>
 
         <fieldset class="inset">
-          <legend>Recipe</legend>
-          <label>Recipe
-            <span class="with-icon"><img class="recipe-icon" alt=""><select name="recipe"><option value="">Custom</option></select></span>
-          </label>
-          <label>Critical ingredient
-            <span class="with-icon"><img class="ingredient-icon" alt=""><select name="ingredient" disabled></select></span>
-          </label>
-          <p class="hint" id="ingredient-hint"></p>
-          <label>Crafting time (s) <input type="number" name="recipe_time" min="0.01" step="any" value="10"></label>
-          <label>Products per ingredient <input type="number" name="recipe_ratio" min="0.001" step="any" value="1"></label>
-          <label>Recycle time (s) <input type="number" name="recycle_time" min="0.001" step="any" placeholder="crafting time ÷ 16"></label>
+          <legend>Keep</legend>
           <label>Keep ingredients at or above
             <span class="quality-picker" data-name="ing_keep" data-allow-none="true"></span>
           </label>
@@ -141,6 +104,47 @@
         <p class="placeholder">Set your inputs and press <b>Calculate</b>.</p>
       </div>
     </section>
+    <!-- Pure recycler loop -->
+    <section class="tab-panel" id="tab-recycler">
+      <form class="panel inputs" id="form-recycler">
+        <h2>Inputs</h2>
+        <div class="presets">
+          Preset:
+          <button type="button" class="btn small" data-preset="tungsten">
+            <img src="/static/icons/tungsten_ore.png" alt=""> Tungsten ore
+          </button>
+        </div>
+
+        <fieldset class="inset">
+          <legend>Input items per second</legend>
+          <div class="tier-grid" data-tier-inputs="input_rates"></div>
+        </fieldset>
+
+        <fieldset class="inset">
+          <legend><img src="/static/icons/recycler.png" alt=""> Recyclers</legend>
+          <label>Count <input type="number" name="rec_count" min="1" value="5"></label>
+          <label>Recycler quality <span class="quality-picker" data-name="rec_quality"></span></label>
+          <label>Quality module
+            <span class="module-picker" data-name="rec_qmod" data-kind="quality"></span>
+          </label>
+        </fieldset>
+
+        <fieldset class="inset">
+          <legend>Recipe</legend>
+          <label>Crafting time (s) <input type="number" name="recipe_time" min="0.01" step="any" value="1"></label>
+          <label>Recycle time (s) <input type="number" name="recycle_time" min="0.001" step="any" placeholder="crafting time ÷ 16"></label>
+          <label>Keep at or above <span class="quality-picker" data-name="keep"></span></label>
+        </fieldset>
+
+        <button type="submit" class="btn confirm">Calculate</button>
+      </form>
+
+      <div class="panel results" id="results-recycler">
+        <h2>Results</h2>
+        <p class="placeholder">Set your inputs and press <b>Calculate</b>.</p>
+      </div>
+    </section>
+
   </main>
 
   <footer>

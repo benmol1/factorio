@@ -178,6 +178,7 @@ input::placeholder { color: #6d6862; }
 .stat-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-bottom: 14px; }
 .stat-card { background: var(--inset); padding: 10px 12px; box-shadow: inset 2px 2px 3px #000c; border-left: 3px solid var(--q, var(--orange)); }
 .stat-card .label { color: var(--muted); font-size: 13px; }
+.stat-card .card-icon { width: 20px; height: 20px; vertical-align: middle; margin-right: 6px; }
 .stat-card .value { font-size: 26px; font-weight: 700; color: var(--q, var(--heading)); line-height: 1.2; }
 .stat-card .value small { font-size: 14px; color: var(--muted); font-weight: 400; }
 
