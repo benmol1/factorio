@@ -144,6 +144,7 @@ function initForms() {
 
   $("#form-recycler").addEventListener("submit", (e) => { e.preventDefault(); calculateRecycler(); });
   $("#form-assembler").addEventListener("submit", (e) => { e.preventDefault(); calculateAssembler(); });
+  $("#solve").addEventListener("click", solveAssembler);
   $$("[data-preset]").forEach((b) =>
     b.addEventListener("click", () => {
       PRESETS[b.dataset.preset]();
@@ -410,11 +411,8 @@ function renderRecycler(d, out) {
 
 // ---------- Assembler loop ----------
 
-async function calculateAssembler() {
-  const f = $("#form-assembler");
-  const out = $("#results-assembler");
-  if (!checkSlots()) return;
-  const data = await post("/api/assembler-loop", {
+function assemblerRequest(f) {
+  return {
     input_rates: getTierInputs($("[data-tier-inputs]", f)),
     machine: f.machine.value,
     recipe: f.recipe.value || null,
@@ -433,9 +431,51 @@ async function calculateAssembler() {
     recycle_time: optionalNumber(f.recycle_time),
     ingredient_quality_to_keep: getQuality($(".quality-picker[data-name=ing_keep]", f)),
     product_quality_to_keep: getQuality($(".quality-picker[data-name=prod_keep]", f)),
-  }, out);
-  if (data) renderAssembler(data, out, GAME.machines[f.machine.value], GAME.recipes[f.recipe.value], f.ingredient.value,
-    getTierInputs($("[data-tier-inputs]", f)).reduce((a, b) => a + b, 0));
+  };
+}
+
+async function calculateAssembler() {
+  const f = $("#form-assembler");
+  const out = $("#results-assembler");
+  if (!checkSlots()) return;
+  const data = await post("/api/assembler-loop", assemblerRequest(f), out);
+  if (data) {
+    renderAssembler(data, out, GAME.machines[f.machine.value], GAME.recipes[f.recipe.value], f.ingredient.value,
+      getTierInputs($("[data-tier-inputs]", f)).reduce((a, b) => a + b, 0));
+  }
+}
+
+// Fills in the machine counts and qualities the solver picks, then shows the result
+async function solveAssembler() {
+  const f = $("#form-assembler");
+  const status = $("#solve-status");
+  if (!checkSlots()) return;
+  status.classList.remove("error");
+  status.textContent = "Solving…";
+  const body = { ...assemblerRequest(f), max_assemblers: Number(f.max_assemblers.value), max_recyclers: Number(f.max_recyclers.value) };
+  let data;
+  try {
+    const res = await fetch("/api/solve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    data = await res.json();
+    if (!res.ok) throw new Error(formatError(data));
+  } catch (err) {
+    status.classList.add("error");
+    status.textContent = err.message;
+    return;
+  }
+  data.tiers.forEach((t, i) => {
+    // A tier that needs no machines (e.g. a kept one) still needs a valid count in the form
+    f[`count_${i}`].value = Math.max(t.count, 1);
+    setQuality($(`.quality-picker[data-name=machine_quality_${i}]`, f), t.machine_quality);
+  });
+  f.rec_count.value = Math.max(data.recycler.count, 1);
+  setQuality($(".quality-picker[data-name=rec_quality]", f), data.recycler.quality);
+  saveState(f);
+  status.classList.toggle("error", !data.fits);
+  status.textContent = data.fits
+    ? "Solved: the lowest machine quality and fewest machines within your limits."
+    : "No build fits within your limits, even with Legendary machines. Showing the best build; raise the limits for a full fix.";
+  calculateAssembler();
 }
 
 function renderAssembler(d, out, machine, recipe, ingredient, inputFlow) {

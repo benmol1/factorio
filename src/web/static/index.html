@@ -96,6 +96,15 @@
           </label>
         </fieldset>
 
+        <fieldset class="inset">
+          <legend>Solver</legend>
+          <label>Max assemblers per tier <input type="number" name="max_assemblers" min="1" value="50"></label>
+          <label>Max recyclers <input type="number" name="max_recyclers" min="1" value="20"></label>
+          <p class="hint">Fills in the fewest machines, at the lowest machine quality, that stay within these limits with no bottlenecks.</p>
+          <button type="button" class="btn" id="solve">Solve</button>
+          <p class="hint" id="solve-status"></p>
+        </fieldset>
+
         <button type="submit" class="btn confirm">Calculate</button>
       </form>
 

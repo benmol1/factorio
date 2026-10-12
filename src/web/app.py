@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from src.quality.assembler_recycler_loop import assembler_recycler_loop
 from src.quality.pure_recycler_loop import get_production_rate, recycler_loop
+from src.quality.solver import solve_machine_quality
 from src.quality.utils import NUM_TIERS
 from src.web.game_data import (
     MACHINES,
@@ -104,6 +105,13 @@ class AssemblerLoopRequest(BaseModel):
         return self
 
 
+class SolveRequest(AssemblerLoopRequest):
+    """The loop to solve. The machine counts and qualities in `tiers` and `recycler` are ignored."""
+
+    max_assemblers: Annotated[int, Field(ge=1)] = 50
+    max_recyclers: Annotated[int, Field(ge=1)] = 20
+
+
 app = FastAPI(title="Factorio Quality Loop Simulator")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
@@ -153,44 +161,77 @@ def run_recycler_loop(req: RecyclerLoopRequest) -> dict:
     }
 
 
+def _loop_kwargs(req: AssemblerLoopRequest) -> dict:
+    """The loop arguments shared by simulating a build and solving for one, which exclude the machines themselves."""
+    machine = MACHINES[req.machine]
+    ingredient_keep = None if req.ingredient_quality_to_keep is None else req.ingredient_quality_to_keep + 1
+    product_keep = None if req.product_quality_to_keep is None else req.product_quality_to_keep + 1
+    recycler_quality_chance, _ = _recycler_stats(req.recycler)
+    return {
+        "input_vector": np.array(req.input_rates + [0.0] * NUM_TIERS, dtype=float),
+        "assembler_modules_config": [(t.prod_modules, t.quality_modules) for t in req.tiers],
+        "product_quality_to_keep": product_keep,
+        "ingredient_quality_to_keep": ingredient_keep,
+        # The library's base bonus is the production ratio before modules, so it includes the base 1×
+        "base_prod_bonus": 1 + machine.prod_bonus + req.research_prod_bonus,
+        "recipe_ratio": req.recipe_ratio,
+        "recipe_time": req.recipe_time,
+        "prod_module_bonus": PROD_MODULE_BONUS[req.prod_module.level][req.prod_module.quality],
+        "qual_module_bonus": QUALITY_MODULE_BONUS[req.quality_module.level][req.quality_module.quality],
+        "recycle_time": req.recycle_time,
+        "recycler_qual_module_bonus": recycler_quality_chance / RECYCLER_SLOTS,
+    }
+
+
+def _assembler_speed(req: AssemblerLoopRequest, tier: TierSetup, machine_quality: int) -> float:
+    """Crafting speed of one assembler of a tier at a given machine quality, after its module penalties."""
+    penalty = (
+        tier.prod_modules * PROD_MODULE_SPEED_PENALTY[req.prod_module.level]
+        + tier.quality_modules * QUALITY_MODULE_SPEED_PENALTY
+    )
+    return machine_speed(MACHINES[req.machine].speed, machine_quality, penalty)
+
+
+@app.post("/api/solve")
+def solve(req: SolveRequest) -> dict:
+    """Find the cheapest machine quality and fewest machines for each stage that leave no bottlenecks."""
+    qualities = range(NUM_TIERS)
+    solution = solve_machine_quality(
+        assembler_speeds_by_quality=[[_assembler_speed(req, t, q) for t in req.tiers] for q in qualities],
+        recycler_speeds_by_quality=[recycler_speed(q) for q in qualities],
+        max_assemblers=req.max_assemblers,
+        max_recyclers=req.max_recyclers,
+        **_loop_kwargs(req),
+    )
+    return {
+        "tiers": [
+            {"machine_quality": q, "count": n}
+            for q, n in zip(solution.assembler_qualities, solution.num_assemblers, strict=True)
+        ],
+        "recycler": {"quality": solution.recycler_quality, "count": solution.num_recyclers},
+        "fits": solution.fits,
+    }
+
+
 @app.post("/api/assembler-loop")
 def run_assembler_loop(req: AssemblerLoopRequest) -> dict:
     """Simulate an assembler → recycler loop."""
     machine = MACHINES[req.machine]
-    prod_bonus = PROD_MODULE_BONUS[req.prod_module.level][req.prod_module.quality]
-    qual_bonus = QUALITY_MODULE_BONUS[req.quality_module.level][req.quality_module.quality]
-    prod_penalty = PROD_MODULE_SPEED_PENALTY[req.prod_module.level]
+    loop = _loop_kwargs(req)
+    prod_bonus = loop["prod_module_bonus"]
+    qual_bonus = loop["qual_module_bonus"]
 
-    speeds = [
-        machine_speed(
-            machine.speed,
-            t.machine_quality,
-            t.prod_modules * prod_penalty + t.quality_modules * QUALITY_MODULE_SPEED_PENALTY,
-        )
-        for t in req.tiers
-    ]
+    speeds = [_assembler_speed(req, t, t.machine_quality) for t in req.tiers]
     recycler_quality_chance, rec_speed = _recycler_stats(req.recycler)
-
-    ingredient_keep = None if req.ingredient_quality_to_keep is None else req.ingredient_quality_to_keep + 1
-    product_keep = None if req.product_quality_to_keep is None else req.product_quality_to_keep + 1
+    ingredient_keep = loop["ingredient_quality_to_keep"]
+    product_keep = loop["product_quality_to_keep"]
 
     flows, _, _, max_flow = assembler_recycler_loop(
-        input_vector=np.array(req.input_rates + [0.0] * NUM_TIERS, dtype=float),
-        assembler_modules_config=[(t.prod_modules, t.quality_modules) for t in req.tiers],
-        product_quality_to_keep=product_keep,
-        ingredient_quality_to_keep=ingredient_keep,
-        # The library's base bonus is the production ratio before modules, so it includes the base 1×
-        base_prod_bonus=1 + machine.prod_bonus + req.research_prod_bonus,
-        recipe_ratio=req.recipe_ratio,
-        recipe_time=req.recipe_time,
-        prod_module_bonus=prod_bonus,
-        qual_module_bonus=qual_bonus,
+        **loop,
         speed_assemblers=speeds,
         speed_recycler=rec_speed,
         num_assemblers=[t.count for t in req.tiers],
         num_recyclers=req.recycler.count,
-        recycle_time=req.recycle_time,
-        recycler_qual_module_bonus=recycler_quality_chance / RECYCLER_SLOTS,
     )
 
     ingredient_flows = flows[:NUM_TIERS]
