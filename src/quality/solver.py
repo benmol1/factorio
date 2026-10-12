@@ -14,14 +14,12 @@ TOLERANCE = 1e-9
 
 @dataclass(frozen=True)
 class QualitySolution:
-    """Cheapest machine quality and count for each stage, within a machine limit."""
+    """Fewest machines for each stage, at the lowest machine quality that achieves that count."""
 
     assembler_qualities: list[int]
     num_assemblers: list[int]
     recycler_quality: int
     num_recyclers: int
-    # False if a stage needs more machines than the limit even at the best quality (it is then built at the best)
-    fits: bool
 
 
 @dataclass(frozen=True)
@@ -121,22 +119,19 @@ def _machines_needed(flow: float, single_machine_capacity: float) -> int:
 def solve_machine_quality(
     assembler_speeds_by_quality: list[list[float]],
     recycler_speeds_by_quality: list[float],
-    max_assemblers: int,
-    max_recyclers: int,
     **loop,
 ) -> QualitySolution:
-    """Pick the lowest machine quality per stage that fits within a machine limit, with the fewest machines.
+    """Pick the fewest machines per stage, then the lowest machine quality that still needs no more of them.
 
-    Each stage is solved independently, since the flows don't depend on the machines. For each stage the qualities
-    are tried from lowest to highest, and the first whose solved count is within the limit wins. If even the best
-    quality needs more machines than allowed, the stage is built at the best quality and `fits` is False.
+    Each stage is solved independently, since the flows don't depend on the machines. The footprint comes first:
+    a stage's machine count is the fewest it can have, which is what the best quality needs. Then the quality is
+    lowered for as long as the count doesn't grow, so the machines are as loaded as possible while staying at or below
+    100%.
 
     Args:
         assembler_speeds_by_quality: Assembler speed per ingredient tier for each machine quality, indexed
             `[quality][tier]`. Speeds already include any module penalties.
         recycler_speeds_by_quality: Recycler speed for each machine quality.
-        max_assemblers: Most assemblers allowed for any one ingredient tier.
-        max_recyclers: Most recyclers allowed.
         **loop: The loop arguments of `solve_machine_counts`, other than the speeds.
 
     Returns:
@@ -150,21 +145,12 @@ def solve_machine_quality(
     ]
     best = len(solutions) - 1
 
-    def cheapest(counts: list[int], limit: int) -> tuple[int, bool]:
-        """Lowest quality whose count is within the limit, or the best quality if none is."""
-        for q, n in enumerate(counts):
-            if n <= limit:
-                return q, True
-        return best, False
+    def lowest_quality(counts: list[int]) -> int:
+        """Lowest quality that needs as few machines as the best quality does."""
+        return counts.index(counts[best])
 
-    qualities, counts, fits = [], [], []
-    for tier in range(NUM_TIERS):
-        q, ok = cheapest([sol.num_assemblers[tier] for sol in solutions], max_assemblers)
-        qualities.append(q)
-        counts.append(solutions[q].num_assemblers[tier])
-        fits.append(ok)
+    qualities = [lowest_quality([sol.num_assemblers[tier] for sol in solutions]) for tier in range(NUM_TIERS)]
+    counts = [solutions[q].num_assemblers[tier] for tier, q in enumerate(qualities)]
+    recycler_quality = lowest_quality([sol.num_recyclers for sol in solutions])
 
-    recycler_quality, ok = cheapest([sol.num_recyclers for sol in solutions], max_recyclers)
-    fits.append(ok)
-
-    return QualitySolution(qualities, counts, recycler_quality, solutions[recycler_quality].num_recyclers, all(fits))
+    return QualitySolution(qualities, counts, recycler_quality, solutions[recycler_quality].num_recyclers)

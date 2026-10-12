@@ -121,9 +121,8 @@ def test_assembler_loop_rejects_wrong_machine_for_recipe():
 
 def test_solve_builds_have_no_bottlenecks():
     """Simulating the solver's build shows every machine at or below capacity."""
-    req = u238_request(max_assemblers=40, max_recyclers=10)
+    req = u238_request()
     solved = client.post("/api/solve", json=req).json()
-    assert solved["fits"]
 
     req["tiers"] = [
         t | {"count": max(s["count"], 1), "machine_quality": s["machine_quality"]}
@@ -138,18 +137,10 @@ def test_solve_builds_have_no_bottlenecks():
     assert result["recycler"]["flow"] <= result["recycler"]["max_flow"] + 1e-9
 
 
-def test_solve_prefers_lower_quality_within_the_limit():
-    """A looser machine limit lets the solver use lower quality machines."""
-    tight = client.post("/api/solve", json=u238_request(max_assemblers=5, max_recyclers=3)).json()
-    loose = client.post("/api/solve", json=u238_request(max_assemblers=500, max_recyclers=500)).json()
-
-    assert all(t["machine_quality"] == 0 for t in loose["tiers"])
-    assert loose["recycler"]["quality"] == 0
-    assert tight["recycler"]["quality"] > loose["recycler"]["quality"]
-
-
-def test_solve_reports_when_the_limit_cannot_be_met():
-    """If even legendary machines exceed the limit, the stage is built at legendary and flagged."""
-    solved = client.post("/api/solve", json=u238_request(max_assemblers=1, max_recyclers=1)).json()
-    assert not solved["fits"]
-    assert solved["recycler"]["quality"] == LEGENDARY
+def test_solve_ignores_the_machines_in_the_request():
+    """The solver picks counts and qualities itself, whatever machines the request describes."""
+    base = client.post("/api/solve", json=u238_request()).json()
+    other = u238_request()
+    other["tiers"] = [t | {"count": 1, "machine_quality": 0} for t in other["tiers"]]
+    other["recycler"] |= {"count": 1, "quality": 0}
+    assert client.post("/api/solve", json=other).json() == base

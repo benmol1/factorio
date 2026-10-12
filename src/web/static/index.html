@@ -46,8 +46,8 @@
 
         <div class="presets">
           Preset:
-          <button type="button" class="btn small" data-preset="u238">
-            <img src="/static/icons/uranium_rounds_magazine.png" alt=""> U-238 via uranium ammo
+          <button type="button" class="btn small" data-preset="holmium">
+            <img src="/static/icons/holmium_plate.png" alt=""> Holmium via EM plants
           </button>
         </div>
 
@@ -98,9 +98,7 @@
 
         <fieldset class="inset">
           <legend>Solver</legend>
-          <label>Max assemblers per tier <input type="number" name="max_assemblers" min="1" value="50"></label>
-          <label>Max recyclers <input type="number" name="max_recyclers" min="1" value="20"></label>
-          <p class="hint">Fills in the fewest machines, at the lowest machine quality, that stay within these limits with no bottlenecks.</p>
+          <p class="hint">Fills in the fewest machines per stage with no bottlenecks, then the lowest machine quality that needs no more of them.</p>
           <button type="button" class="btn" id="solve">Solve</button>
           <p class="hint" id="solve-status"></p>
         </fieldset>

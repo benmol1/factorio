@@ -105,13 +105,6 @@ class AssemblerLoopRequest(BaseModel):
         return self
 
 
-class SolveRequest(AssemblerLoopRequest):
-    """The loop to solve. The machine counts and qualities in `tiers` and `recycler` are ignored."""
-
-    max_assemblers: Annotated[int, Field(ge=1)] = 50
-    max_recyclers: Annotated[int, Field(ge=1)] = 20
-
-
 app = FastAPI(title="Factorio Quality Loop Simulator")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
@@ -193,14 +186,14 @@ def _assembler_speed(req: AssemblerLoopRequest, tier: TierSetup, machine_quality
 
 
 @app.post("/api/solve")
-def solve(req: SolveRequest) -> dict:
-    """Find the cheapest machine quality and fewest machines for each stage that leave no bottlenecks."""
+def solve(req: AssemblerLoopRequest) -> dict:
+    """Find the fewest machines for each stage that leave no bottlenecks, at the lowest machine quality that allows it.
+
+    The machine counts and qualities in the request's `tiers` and `recycler` are ignored."""
     qualities = range(NUM_TIERS)
     solution = solve_machine_quality(
         assembler_speeds_by_quality=[[_assembler_speed(req, t, q) for t in req.tiers] for q in qualities],
         recycler_speeds_by_quality=[recycler_speed(q) for q in qualities],
-        max_assemblers=req.max_assemblers,
-        max_recyclers=req.max_recyclers,
         **_loop_kwargs(req),
     )
     return {
@@ -209,7 +202,6 @@ def solve(req: SolveRequest) -> dict:
             for q, n in zip(solution.assembler_qualities, solution.num_assemblers, strict=True)
         ],
         "recycler": {"quality": solution.recycler_quality, "count": solution.num_recyclers},
-        "fits": solution.fits,
     }
 
 

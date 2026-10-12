@@ -53,7 +53,7 @@ ITEMS = {
     "yumako-mash": Item("Yumako mash", "yumako_mash"),
 }
 
-ASSEMBLERS = ("assembling-machine-2", "assembling-machine-3")
+ASSEMBLERS = ("assembling-machine-3",)
 
 RECIPES = {
     "casting-low-density-structure": Recipe(

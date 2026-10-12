@@ -31,7 +31,6 @@ class Machine:
 
 
 MACHINES = {
-    "assembling-machine-2": Machine("Assembling machine 2", 0.75, 2, 0.0, "assembling_machine_2"),
     "assembling-machine-3": Machine("Assembling machine 3", 1.25, 4, 0.0, "assembling_machine_3"),
     "electric-furnace": Machine("Electric furnace", 2.0, 2, 0.0, "electric_furnace"),
     "chemical-plant": Machine("Chemical plant", 1.0, 3, 0.0, "chemical_plant"),

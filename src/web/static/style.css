@@ -62,6 +62,7 @@ main { max-width: 1400px; margin: 0 auto; padding: 20px 16px 8px; }
   font-weight: 700;
 }
 .inset {
+  min-width: 0; /* fieldsets default to min-content, so a wide table would stretch the box */
   background: var(--inset);
   border: 0;
   margin: 0 0 12px;
@@ -141,7 +142,7 @@ input::placeholder { color: #6d6862; }
 .tier-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
 .tier-table th { font-weight: 600; color: var(--muted); text-align: left; font-size: 13px; }
 .tier-table td { padding: 2px 0; }
-.tier-table input { width: 64px; }
+.tier-table input { width: 48px; }
 
 .hint { color: var(--muted); font-size: 13px; margin: 6px 0 0; min-height: 1em; }
 .hint.error { color: var(--red); }

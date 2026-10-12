@@ -29,6 +29,16 @@ function fmt(x, digits = 2) {
   if (x !== 0 && Math.abs(x) < 0.5 * 10 ** -digits) return x.toExponential(1);
   return x.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
+// Flow rates to 3 significant figures, with k / M for large ones: 1260 → "1.26k"
+function fmtFlow(x) {
+  if (!isFinite(x)) return "–";
+  const abs = Math.abs(x);
+  const [scaled, suffix] = abs >= 1e6 ? [x / 1e6, "M"] : abs >= 1000 ? [x / 1e3, "k"] : [x, ""];
+  // Rounding can carry a value up to the next unit (999.9 → 1,000), so show that as 1k
+  if (suffix === "" && Math.abs(Number(scaled.toPrecision(3))) >= 1000) return fmtFlow(1000 * Math.sign(x));
+  return scaled.toLocaleString(undefined, { maximumSignificantDigits: 3 }) + suffix;
+}
+
 const pct = (x, digits = 1) => `${fmt(x * 100, digits)}%`;
 
 function tierName(i) {
@@ -114,7 +124,7 @@ function initForms() {
   const machineSelect = $("#form-assembler select[name=machine]");
   for (const [key, m] of Object.entries(GAME.machines)) machineSelect.append(el("option", { value: key }, m.name));
   machineSelect.value = "assembling-machine-3";
-  machineSelect.addEventListener("change", updateMachine);
+  machineSelect.addEventListener("change", changeMachine);
 
   // Recipe dropdown
   const form = $("#form-assembler");
@@ -136,7 +146,7 @@ function initForms() {
   });
   $$(".quality-picker", tbody).forEach((s) => buildQualityPicker(s, 0));
   tbody.addEventListener("input", checkSlots);
-  updateMachine();
+  changeMachine();
 
   // Tabs
   $$(".tab").forEach((tab) => tab.addEventListener("click", () => showTab(tab.dataset.tab)));
@@ -168,6 +178,22 @@ function updateMachine() {
   checkSlots();
 }
 
+// Fills every slot: quality modules in the lower tiers, productivity modules in the top one
+function fillSlots() {
+  const form = $("#form-assembler");
+  const slots = GAME.machines[form.machine.value].slots;
+  TIERS.forEach((_, i) => {
+    form[`prod_${i}`].value = i === TIERS.length - 1 ? slots : 0;
+    form[`qual_${i}`].value = i === TIERS.length - 1 ? 0 : slots;
+  });
+  checkSlots();
+}
+
+function changeMachine() {
+  updateMachine();
+  fillSlots();
+}
+
 function updateRecipe() {
   const form = $("#form-assembler");
   const r = GAME.recipes[form.recipe.value];
@@ -177,7 +203,7 @@ function updateRecipe() {
   for (const opt of form.machine.options) opt.disabled = !!r && !r.machines.includes(opt.value);
   if (r && !r.machines.includes(form.machine.value)) {
     form.machine.value = r.machines.find((m) => GAME.machines[m]);
-    updateMachine();
+    changeMachine();
   }
 
   form.ingredient.innerHTML = "";
@@ -303,31 +329,28 @@ const PRESETS = {
     f.recycle_time.value = "";
     setQuality($(".quality-picker[data-name=keep]", f), 4);
   },
-  u238() {
+  holmium() {
     const f = $("#form-assembler");
-    setTierInputs($("[data-tier-inputs]", f), [8, 0, 0, 0, 0]);
-    f.recipe.value = "";
+    setTierInputs($("[data-tier-inputs]", f), [20, 0, 0, 0, 0]);
+    f.recipe.value = "electromagnetic-plant";
     updateRecipe();
-    f.machine.value = "assembling-machine-3";
-    updateMachine();
+    f.ingredient.value = "holmium-plate";
+    updateIngredient();
+    f.machine.value = "electromagnetic-plant";
+    changeMachine();
     f.research_prod.value = 0;
     setModule($(".module-picker[data-name=pmod]", f), 3, 4);
     setModule($(".module-picker[data-name=qmod]", f), 3, 4);
-    [40, 4, 2, 1, 1].forEach((n, i) => {
+    [4, 1, 1, 1, 1].forEach((n, i) => {
       f[`count_${i}`].value = n;
-      setQuality($(`.quality-picker[data-name=machine_quality_${i}]`, f), 4);
-      f[`prod_${i}`].value = i === 4 ? 4 : 0;
-      f[`qual_${i}`].value = i === 4 ? 0 : 4;
+      setQuality($(`.quality-picker[data-name=machine_quality_${i}]`, f), 0);
     });
-    f.rec_count.value = 8;
-    setQuality($(".quality-picker[data-name=rec_quality]", f), 4);
+    f.rec_count.value = 2;
+    setQuality($(".quality-picker[data-name=rec_quality]", f), 0);
     setModule($(".module-picker[data-name=rec_qmod]", f), 3, 4);
-    f.recipe_time.value = 10;
-    f.recipe_ratio.value = 1;
     f.recycle_time.value = "";
     setQuality($(".quality-picker[data-name=ing_keep]", f), 4);
     setQuality($(".quality-picker[data-name=prod_keep]", f), null);
-    checkSlots();
   },
 };
 
@@ -384,10 +407,10 @@ function renderRecycler(d, out) {
     <h2>Results</h2>
     <div class="stat-cards">
       <div class="stat-card q4"><div class="label">Legendary output</div>
-        <div class="value">${fmt(d.production_rate[4] * 3600, 1)} <small>/ hour</small></div></div>
+        <div class="value">${fmtFlow(d.production_rate[4] * 3600)} <small>/ hour</small></div></div>
       <div class="stat-card q${keepFrom}"><div class="label">Total kept output (${TIERS[keepFrom]}+)</div>
-        <div class="value">${fmt(output * 60, 1)} <small>/ min</small></div></div>
-      ${loadCard("Recycler load", d.recycler_load)}
+        <div class="value">${fmtFlow(output * 60)} <small>/ min</small></div></div>
+      ${loadCard("Recycler load", d.recycler_load, recyclerHint($("#form-recycler")), ICON("recycler"))}
     </div>
     <div class="section-title"><img src="${ICON("recycler")}" alt="">Products</div>
     <table class="results-table">
@@ -396,9 +419,9 @@ function renderRecycler(d, out) {
         ${d.flows.map((flow, i) => `
           <tr class="q${i}">
             <td>${tierName(i)}</td>
-            <td class="num">${fmt(flow, 1)}</td>
-            <td class="num">${fmt(d.production_rate[i] * 60, 1)}</td>
-            <td class="num">${fmt(d.production_rate[i] * 3600, 1)}</td>
+            <td class="num">${fmtFlow(flow)}</td>
+            <td class="num">${fmtFlow(d.production_rate[i] * 60)}</td>
+            <td class="num">${fmtFlow(d.production_rate[i] * 3600)}</td>
             <td>${statusTag(d.kept[i])}</td>
           </tr>`).join("")}
       </tbody>
@@ -452,10 +475,9 @@ async function solveAssembler() {
   if (!checkSlots()) return;
   status.classList.remove("error");
   status.textContent = "Solving…";
-  const body = { ...assemblerRequest(f), max_assemblers: Number(f.max_assemblers.value), max_recyclers: Number(f.max_recyclers.value) };
   let data;
   try {
-    const res = await fetch("/api/solve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const res = await fetch("/api/solve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(assemblerRequest(f)) });
     data = await res.json();
     if (!res.ok) throw new Error(formatError(data));
   } catch (err) {
@@ -471,10 +493,7 @@ async function solveAssembler() {
   f.rec_count.value = Math.max(data.recycler.count, 1);
   setQuality($(".quality-picker[data-name=rec_quality]", f), data.recycler.quality);
   saveState(f);
-  status.classList.toggle("error", !data.fits);
-  status.textContent = data.fits
-    ? "Solved: the lowest machine quality and fewest machines within your limits."
-    : "No build fits within your limits, even with Legendary machines. Showing the best build; raise the limits for a full fix.";
+  status.textContent = "Solved: the fewest machines per stage, at the lowest machine quality that still needs no more.";
   calculateAssembler();
 }
 
@@ -504,9 +523,9 @@ function renderAssembler(d, out, machine, recipe, ingredient, inputFlow) {
       <tbody>
         <tr class="q${tier}">
           <td>${tierName(tier)}</td>
-          <td class="num">${fmt(flows[tier], 1)}</td>
-          <td class="num">${fmt(flows[tier] * 60, 1)}</td>
-          <td class="num">${fmt(flows[tier] * 3600, 1)}</td>
+          <td class="num">${fmtFlow(flows[tier])}</td>
+          <td class="num">${fmtFlow(flows[tier] * 60)}</td>
+          <td class="num">${fmtFlow(flows[tier] * 3600)}</td>
         </tr>
       </tbody>
     </table>`;
@@ -516,22 +535,22 @@ function renderAssembler(d, out, machine, recipe, ingredient, inputFlow) {
     <div class="stat-cards">
       ${keptIng >= 0 ? outputCard(ingIcon, `${TIERS[keptIng]} ${ingName}`, ing.flows[keptIng]) : ""}
       ${keptProd >= 0 ? outputCard(prodIcon, `${TIERS[keptProd]} ${prodName}`, prod.flows[keptProd]) : ""}
-      ${loadCard("Recycler load", recLoad)}
-      <div class="stat-card"><div class="label">Bottlenecks</div>
-        <div class="value" style="font-size:18px;color:${bottlenecks.length ? "var(--red)" : "var(--green)"}">
-          ${bottlenecks.length ? bottlenecks.join(", ") : "None"}</div></div>
+      ${loadCard("Recycler load", recLoad, recyclerHint($("#form-assembler")), ICON("recycler"))}
+      <div class="stat-card" style="--q:${bottlenecks.length ? "var(--red)" : "var(--green)"}"><div class="label">Bottlenecks</div>
+        <div class="value" style="color:${bottlenecks.length ? "var(--red)" : "var(--green)"}">
+          ${bottlenecks.length ? `✘ <small>${bottlenecks.join(", ")}</small>` : "✔ <small>None</small>"}</div></div>
     </div>
     <div class="section-title"><img src="${ingIcon}" alt="">${ingName} (ingredients)
-      ${keptIng >= 0 ? `<span class="hint" style="margin-left:auto">kept: ${fmt(keptIngFlow * 60, 1)} / min</span>` : ""}</div>
+      ${keptIng >= 0 ? `<span class="hint" style="margin-left:auto">kept: ${fmtFlow(keptIngFlow * 60)} / min</span>` : ""}</div>
     <table class="results-table">
       <thead><tr><th>Quality</th><th>Flow / s</th><th>Flow / min</th><th>Assembler capacity / s</th><th>Assembler load</th><th>Status</th></tr></thead>
       <tbody>
         ${ing.flows.map((flow, i) => `
           <tr class="q${i}">
             <td>${tierName(i)}</td>
-            <td class="num">${fmt(flow, 1)}</td>
-            <td class="num">${fmt(flow * 60, 1)}</td>
-            <td class="num">${ing.kept[i] ? "–" : fmt(ing.max_flow[i], 1)}</td>
+            <td class="num">${fmtFlow(flow)}</td>
+            <td class="num">${fmtFlow(flow * 60)}</td>
+            <td class="num">${ing.kept[i] ? "–" : fmtFlow(ing.max_flow[i])}</td>
             <td>${ing.kept[i] ? "" : loadBar(loads[i])}</td>
             <td>${statusTag(ing.kept[i], "Assembled")}</td>
           </tr>`).join("")}
@@ -542,11 +561,12 @@ function renderAssembler(d, out, machine, recipe, ingredient, inputFlow) {
     
     <div class="section-title"><img src="${ICON(machine.icon)}" alt="">Machines</div>
     <table class="results-table">
-      <thead><tr><th>Assemblers crafting</th><th>Speed</th><th>Quality chance</th><th>Productivity bonus</th></tr></thead>
+      <thead><tr><th>Assemblers crafting</th><th>Count</th><th>Speed</th><th>Quality chance</th><th>Productivity bonus</th></tr></thead>
       <tbody>
         ${TIERS.map((_, i) => `
           <tr class="q${i}">
             <td>${tierName(i)}</td>
+            <td class="num">${$("#form-assembler")[`count_${i}`].value}</td>
             <td class="num">${fmt(d.derived.assembler_speeds[i], 3)}</td>
             <td class="num">${pct(d.derived.assembler_quality_chance[i])}</td>
             <td class="num">+${pct(d.derived.assembler_prod_bonus[i], 0)}</td>
@@ -555,7 +575,7 @@ function renderAssembler(d, out, machine, recipe, ingredient, inputFlow) {
     </table>
     <p class="machine-stats">
       Recyclers: ${pct(d.derived.recycler_quality_chance)} quality chance, speed ${fmt(d.derived.recycler_speed, 2)},
-      handling ${fmt(d.recycler.flow, 1)} of ${fmt(d.recycler.max_flow, 1)} products / s.
+      handling ${fmtFlow(d.recycler.flow)} of ${fmtFlow(d.recycler.max_flow)} products / s.
     </p>`;
 }
 
@@ -578,7 +598,7 @@ function loadBar(load) {
 function ingredientSupplyHint(recipe, ingredient, inputFlow) {
   if (!recipe || !ingredient) return "";
   const flows = Object.entries(recipe.ingredients).map(
-    ([item, n]) => `${GAME.items[item].name} ${fmt((inputFlow * n) / recipe.ingredients[ingredient], 1)} / s`,
+    ([item, n]) => `${GAME.items[item].name} ${fmtFlow((inputFlow * n) / recipe.ingredients[ingredient])} / s`,
   );
   return `<p class="hint">Raw input to supply: ${flows.join(" · ")}</p>`;
 }
@@ -587,14 +607,21 @@ function ingredientSupplyHint(recipe, ingredient, inputFlow) {
 function outputCard(icon, label, flow) {
   const tier = TIERS.findIndex((t) => label.startsWith(t));
   return `<div class="stat-card q${tier}"><div class="label"><img class="card-icon" src="${icon}" alt="">${label}</div>
-    <div class="value">${fmt(flow * 60, 1)} <small>/ min</small></div>
-    <div class="label">${fmt(flow, 1)} / s · ${fmt(flow * 3600, 1)} / hour</div></div>`;
+    <div class="value">${fmtFlow(flow * 60)} <small>/ min</small></div>
+    <div class="label">${fmtFlow(flow)} / s · ${fmtFlow(flow * 3600)} / hour</div></div>`;
 }
 
-function loadCard(label, load) {
+function loadCard(label, load, hint = "", icon = "") {
   const colour = load > 1 ? "var(--red)" : load > 0.9 ? "var(--orange)" : "var(--green)";
-  return `<div class="stat-card" style="--q:${colour}"><div class="label">${label}</div>
+  const iconTag = icon ? `<img class="card-icon" src="${icon}" alt="">` : "";
+  return `<div class="stat-card" style="--q:${colour}"><div class="label">${iconTag}${label}${hint ? ` <small>(${hint})</small>` : ""}</div>
     <div class="value">${pct(load, 0)} <small>${load > 1 ? "add machines" : "of capacity"}</small></div></div>`;
+}
+
+// e.g. "8 × Legendary", from the recycler fields of a form
+function recyclerHint(form) {
+  const { count, quality } = recyclerSetup(form);
+  return `${count} × ${TIERS[quality]}`;
 }
 
 // ---------- Boot ----------
