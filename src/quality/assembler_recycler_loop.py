@@ -193,6 +193,7 @@ def assembler_recycler_loop(
     num_assemblers: list = [1] * NUM_TIERS,
     num_recyclers: int = 1,
     recycle_time: float | None = None,
+    recycler_qual_module_bonus: float | None = None,
     verbose: bool = False,
 ) -> np.array:
     """Simulate an assembler-recycler loop to calculate quality tier flows.
@@ -219,6 +220,8 @@ def assembler_recycler_loop(
         num_recyclers: Number of recyclers.
         recycle_time: Base time in seconds of the product's recycling recipe. Factorio 2.1.13+ scales this with the
             item's result count, so read it from the game. Defaults to `recipe_time / 16` (the pre-2.1.13 rule).
+        recycler_qual_module_bonus: Quality chance bonus per quality module in the recyclers. Defaults to
+            `qual_module_bonus`.
         verbose: If True, print debug information.
 
     Returns:
@@ -241,7 +244,7 @@ def assembler_recycler_loop(
     recycler_parameters = get_recycler_parameters(
         product_quality_to_keep if product_quality_to_keep is not None else NUM_TIERS + 1,
         recipe_ratio,
-        qual_module_bonus,
+        qual_module_bonus if recycler_qual_module_bonus is None else recycler_qual_module_bonus,
     )
     # Create the transition matrix
     transition_matrix = create_transition_matrix(

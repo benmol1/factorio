@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Quality Loop Simulator</title>
+  <link rel="icon" href="/static/icons/quality_legendary.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <img src="/static/icons/recycler.png" alt="">
+    <h1>Quality Loop Simulator</h1>
+    <span class="subtitle">Factorio: Space Age</span>
+  </header>
+
+  <main>
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-tab="recycler" role="tab">
+        <img src="/static/icons/recycler.png" alt=""> Recycler loop
+      </button>
+      <button class="tab" data-tab="assembler" role="tab">
+        <img src="/static/icons/assembling_machine_3.png" alt=""> Assembler → recycler loop
+      </button>
+    </nav>
+
+    <!-- Pure recycler loop -->
+    <section class="tab-panel active" id="tab-recycler">
+      <form class="panel inputs" id="form-recycler">
+        <h2>Inputs</h2>
+        <div class="presets">
+          Preset:
+          <button type="button" class="btn small" data-preset="tungsten">
+            <img src="/static/icons/tungsten_ore.png" alt=""> Tungsten ore
+          </button>
+        </div>
+
+        <fieldset class="inset">
+          <legend>Input items per second</legend>
+          <div class="tier-grid" data-tier-inputs="input_rates"></div>
+        </fieldset>
+
+        <fieldset class="inset">
+          <legend><img src="/static/icons/recycler.png" alt=""> Recyclers</legend>
+          <label>Count <input type="number" name="rec_count" min="1" value="5"></label>
+          <label>Recycler quality <span class="quality-picker" data-name="rec_quality"></span></label>
+          <label>Quality module
+            <span class="module-picker" data-name="rec_qmod" data-kind="quality"></span>
+          </label>
+        </fieldset>
+
+        <fieldset class="inset">
+          <legend>Recipe</legend>
+          <label>Crafting time (s) <input type="number" name="recipe_time" min="0.01" step="any" value="1"></label>
+          <label>Recycle time (s) <input type="number" name="recycle_time" min="0.001" step="any" placeholder="crafting time ÷ 16"></label>
+          <label>Keep at or above <span class="quality-picker" data-name="keep"></span></label>
+        </fieldset>
+
+        <button type="submit" class="btn confirm">Calculate</button>
+      </form>
+
+      <div class="panel results" id="results-recycler">
+        <h2>Results</h2>
+        <p class="placeholder">Set your inputs and press <b>Calculate</b>.</p>
+      </div>
+    </section>
+
+    <!-- Assembler → recycler loop -->
+    <section class="tab-panel" id="tab-assembler">
+      <form class="panel inputs" id="form-assembler">
+        <h2>Inputs</h2>
+        <div class="presets">
+          Preset:
+          <button type="button" class="btn small" data-preset="u238">
+            <img src="/static/icons/uranium_rounds_magazine.png" alt=""> U-238 via uranium ammo
+          </button>
+        </div>
+
+        <fieldset class="inset">
+          <legend>Input ingredients per second</legend>
+          <div class="tier-grid" data-tier-inputs="input_rates"></div>
+        </fieldset>
+
+        <fieldset class="inset">
+          <legend>Assemblers</legend>
+          <label>Machine
+            <span class="with-icon"><img class="machine-icon" alt=""><select name="machine"></select></span>
+          </label>
+          <label>Research productivity (%) <input type="number" name="research_prod" min="0" step="any" value="0"></label>
+          <label>Productivity module
+            <span class="module-picker" data-name="pmod" data-kind="productivity"></span>
+          </label>
+          <label>Quality module
+            <span class="module-picker" data-name="qmod" data-kind="quality"></span>
+          </label>
+          <table class="tier-table">
+            <thead>
+              <tr><th>Ingredient tier</th><th>Machines</th><th>Machine quality</th><th>Prod</th><th>Quality</th></tr>
+            </thead>
+            <tbody id="tier-setup"></tbody>
+          </table>
+          <p class="hint" id="slot-hint"></p>
+        </fieldset>
+
+        <fieldset class="inset">
+          <legend><img src="/static/icons/recycler.png" alt=""> Recyclers</legend>
+          <label>Count <input type="number" name="rec_count" min="1" value="8"></label>
+          <label>Recycler quality <span class="quality-picker" data-name="rec_quality"></span></label>
+          <label>Quality module
+            <span class="module-picker" data-name="rec_qmod" data-kind="quality"></span>
+          </label>
+        </fieldset>
+
+        <fieldset class="inset">
+          <legend>Recipe</legend>
+          <label>Recipe
+            <span class="with-icon"><img class="recipe-icon" alt=""><select name="recipe"><option value="">Custom</option></select></span>
+          </label>
+          <label>Critical ingredient
+            <span class="with-icon"><img class="ingredient-icon" alt=""><select name="ingredient" disabled></select></span>
+          </label>
+          <p class="hint" id="ingredient-hint"></p>
+          <label>Crafting time (s) <input type="number" name="recipe_time" min="0.01" step="any" value="10"></label>
+          <label>Products per ingredient <input type="number" name="recipe_ratio" min="0.001" step="any" value="1"></label>
+          <label>Recycle time (s) <input type="number" name="recycle_time" min="0.001" step="any" placeholder="crafting time ÷ 16"></label>
+          <label>Keep ingredients at or above
+            <span class="quality-picker" data-name="ing_keep" data-allow-none="true"></span>
+          </label>
+          <label>Keep products at or above
+            <span class="quality-picker" data-name="prod_keep" data-allow-none="true"></span>
+          </label>
+        </fieldset>
+
+        <button type="submit" class="btn confirm">Calculate</button>
+      </form>
+
+      <div class="panel results" id="results-assembler">
+        <h2>Results</h2>
+        <p class="placeholder">Set your inputs and press <b>Calculate</b>.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Game graphics © Wube Software, used for personal, non-commercial purposes.
+    Flows are steady-state averages.
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -51,6 +51,50 @@ uv run python -m src.quality.assembler_recycler_loop    # run the assembler + re
 uv run pytest                                           # run the test suite
 ```
 
+### 🖥️ Web frontend
+
+```bash
+uv run uvicorn src.web.app:app --reload   # then open http://127.0.0.1:8000
+```
+
+Pick machines, module tiers and qualities in game terms. The app works out speeds, quality chances and
+productivity for you, then shows flows per tier split into ingredients and products, with bottlenecks
+highlighted. The README's worked examples are built in as presets. Game graphics are © Wube Software.
+
+On the assembler → recycler tab you can:
+
+- **Pick a recipe** from the built-in library. It fills in the crafting time and limits the machine
+  list to machines that can craft it. Choose **Custom** to enter your own time and ratio.
+- **Choose the critical ingredient.** The loop tracks one ingredient, usually the one with the highest
+  input flow or the one that's hardest to make. It defaults to the largest amount in the recipe, and
+  the products-per-ingredient ratio is derived from your choice. A hint shows how much of the other
+  ingredients each one needs; those are assumed to be supplied separately at matching quality.
+- **Set machine quality per ingredient tier**, so you can mix, say, legendary machines in the low
+  tiers with normal ones higher up.
+
+For example, toolbelt equipment with carbon fiber as the critical ingredient, 100 Normal carbon fiber/s,
+48/6/2/2/1 assembling machine 3s (Legendary for the first three tiers, Normal after), 4 quality
+modules each and 10 Legendary recyclers gives **≈19.4 legendary carbon fiber per minute**.
+
+#### Adding recipes
+
+Recipes live in [`src/web/recipes.py`](src/web/recipes.py), with data from the
+[Factorio wiki](https://wiki.factorio.com). Add any new items to `ITEMS`, drop a 64×64 icon in
+`src/web/static/icons/`, and add a `Recipe` with its time, ingredients, products and the `MACHINES`
+keys that can craft it:
+
+```python
+"toolbelt-equipment": Recipe(
+    "Toolbelt equipment",
+    time=10,
+    ingredients={"advanced-circuit": 3, "carbon-fiber": 10},
+    products={"toolbelt-equipment": 1},
+    machines=ASSEMBLERS,
+),
+```
+
+Current recipes: carbon fiber and toolbelt equipment.
+
 > [!NOTE]
 > Run the demos as modules (`python -m ...`) from the repo root, because the code imports from `src.quality`.
 
@@ -277,9 +321,15 @@ factorio/
 │   ├── utils.py                    # tiers, constants, probability + production matrices
 │   ├── pure_recycler_loop.py       # recycler-only loop simulation
 │   └── assembler_recycler_loop.py  # assembler → recycler loop simulation
+├── src/web/
+│   ├── app.py                      # FastAPI app + JSON API
+│   ├── game_data.py                # machine/module stats (game terms → simulation inputs)
+│   ├── recipes.py                  # recipe + item library from the Factorio wiki
+│   └── static/                     # single-page frontend + Wube icons
 ├── tests/
 │   ├── test_utils.py
-│   └── test_loops.py
+│   ├── test_loops.py
+│   └── test_web.py
 ├── pyproject.toml                  # project metadata, ruff + pytest config
 └── uv.lock
 ```
@@ -287,6 +337,7 @@ factorio/
 ## ⚠️ Caveats
 
 - The simulation works on **average flows**. It models steady-state throughput, not item-by-item randomness or belt and inserter limits.
+- For recipes with several ingredients, only the **critical ingredient** is simulated. The others are assumed to be available at the right quality, even though recycling returns them too.
 - Machine speeds, module counts and the 16× recycler speed bonus are inputs and assumptions you provide. Check them against your own game version.
 
 ---
