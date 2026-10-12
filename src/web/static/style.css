@@ -62,6 +62,7 @@ main { max-width: 1400px; margin: 0 auto; padding: 20px 16px 8px; }
   font-weight: 700;
 }
 .inset {
+  min-width: 0; /* fieldsets default to min-content, so a wide table would stretch the box */
   background: var(--inset);
   border: 0;
   margin: 0 0 12px;
@@ -141,7 +142,7 @@ input::placeholder { color: #6d6862; }
 .tier-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
 .tier-table th { font-weight: 600; color: var(--muted); text-align: left; font-size: 13px; }
 .tier-table td { padding: 2px 0; }
-.tier-table input { width: 64px; }
+.tier-table input { width: 48px; }
 
 .hint { color: var(--muted); font-size: 13px; margin: 6px 0 0; min-height: 1em; }
 .hint.error { color: var(--red); }
@@ -178,6 +179,7 @@ input::placeholder { color: #6d6862; }
 .stat-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-bottom: 14px; }
 .stat-card { background: var(--inset); padding: 10px 12px; box-shadow: inset 2px 2px 3px #000c; border-left: 3px solid var(--q, var(--orange)); }
 .stat-card .label { color: var(--muted); font-size: 13px; }
+.stat-card .card-icon { width: 20px; height: 20px; vertical-align: middle; margin-right: 6px; }
 .stat-card .value { font-size: 26px; font-weight: 700; color: var(--q, var(--heading)); line-height: 1.2; }
 .stat-card .value small { font-size: 14px; color: var(--muted); font-weight: 400; }
 

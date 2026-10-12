@@ -71,6 +71,11 @@ On the assembler → recycler tab you can:
   ingredients each one needs; those are assumed to be supplied separately at matching quality.
 - **Set machine quality per ingredient tier**, so you can mix, say, legendary machines in the low
   tiers with normal ones higher up.
+- **Solve for machine counts.** Press **Solve** and for each
+  stage it picks the fewest machines that leave no bottleneck (the footprint comes first), then the lowest machine
+  quality that still needs no more of them, so machines are as loaded as possible without exceeding 100%. It fills
+  in the counts and qualities.
+  The library function is [`solve_machine_counts`](src/quality/solver.py).
 
 For example, toolbelt equipment with carbon fiber as the critical ingredient, 100 Normal carbon fiber/s,
 48/6/2/2/1 assembling machine 3s (Legendary for the first three tiers, Normal after), 4 quality
@@ -93,7 +98,7 @@ keys that can craft it:
 ),
 ```
 
-Current recipes: carbon fiber and toolbelt equipment.
+Current recipes: carbon fiber, toolbelt equipment, pipe, pipe to ground (assembler and foundry casting), fast underground belt, low density structure (assembler and foundry casting), electromagnetic plant and coal synthesis.
 
 > [!NOTE]
 > Run the demos as modules (`python -m ...`) from the repo root, because the code imports from `src.quality`.

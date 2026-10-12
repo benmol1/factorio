@@ -29,6 +29,16 @@ function fmt(x, digits = 2) {
   if (x !== 0 && Math.abs(x) < 0.5 * 10 ** -digits) return x.toExponential(1);
   return x.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
+// Flow rates to 3 significant figures, with k / M for large ones: 1260 → "1.26k"
+function fmtFlow(x) {
+  if (!isFinite(x)) return "–";
+  const abs = Math.abs(x);
+  const [scaled, suffix] = abs >= 1e6 ? [x / 1e6, "M"] : abs >= 1000 ? [x / 1e3, "k"] : [x, ""];
+  // Rounding can carry a value up to the next unit (999.9 → 1,000), so show that as 1k
+  if (suffix === "" && Math.abs(Number(scaled.toPrecision(3))) >= 1000) return fmtFlow(1000 * Math.sign(x));
+  return scaled.toLocaleString(undefined, { maximumSignificantDigits: 3 }) + suffix;
+}
+
 const pct = (x, digits = 1) => `${fmt(x * 100, digits)}%`;
 
 function tierName(i) {
@@ -114,7 +124,7 @@ function initForms() {
   const machineSelect = $("#form-assembler select[name=machine]");
   for (const [key, m] of Object.entries(GAME.machines)) machineSelect.append(el("option", { value: key }, m.name));
   machineSelect.value = "assembling-machine-3";
-  machineSelect.addEventListener("change", updateMachine);
+  machineSelect.addEventListener("change", changeMachine);
 
   // Recipe dropdown
   const form = $("#form-assembler");
@@ -136,15 +146,23 @@ function initForms() {
   });
   $$(".quality-picker", tbody).forEach((s) => buildQualityPicker(s, 0));
   tbody.addEventListener("input", checkSlots);
-  updateMachine();
+  changeMachine();
 
   // Tabs
   $$(".tab").forEach((tab) => tab.addEventListener("click", () => showTab(tab.dataset.tab)));
-  if (location.hash === "#assembler") showTab("assembler");
+  if (location.hash === "#recycler") showTab("recycler");
 
   $("#form-recycler").addEventListener("submit", (e) => { e.preventDefault(); calculateRecycler(); });
   $("#form-assembler").addEventListener("submit", (e) => { e.preventDefault(); calculateAssembler(); });
-  $$("[data-preset]").forEach((b) => b.addEventListener("click", () => PRESETS[b.dataset.preset]()));
+  $("#solve").addEventListener("click", solveAssembler);
+  $$("[data-preset]").forEach((b) =>
+    b.addEventListener("click", () => {
+      PRESETS[b.dataset.preset]();
+      $$("form").forEach(saveState);
+    }),
+  );
+  // Programmatic changes dispatch change events too, so pickers and presets are covered as well
+  $$("form").forEach((f) => ["input", "change"].forEach((ev) => f.addEventListener(ev, () => saveState(f))));
 }
 
 function showTab(name) {
@@ -160,6 +178,22 @@ function updateMachine() {
   checkSlots();
 }
 
+// Fills every slot: quality modules in the lower tiers, productivity modules in the top one
+function fillSlots() {
+  const form = $("#form-assembler");
+  const slots = GAME.machines[form.machine.value].slots;
+  TIERS.forEach((_, i) => {
+    form[`prod_${i}`].value = i === TIERS.length - 1 ? slots : 0;
+    form[`qual_${i}`].value = i === TIERS.length - 1 ? 0 : slots;
+  });
+  checkSlots();
+}
+
+function changeMachine() {
+  updateMachine();
+  fillSlots();
+}
+
 function updateRecipe() {
   const form = $("#form-assembler");
   const r = GAME.recipes[form.recipe.value];
@@ -169,7 +203,7 @@ function updateRecipe() {
   for (const opt of form.machine.options) opt.disabled = !!r && !r.machines.includes(opt.value);
   if (r && !r.machines.includes(form.machine.value)) {
     form.machine.value = r.machines.find((m) => GAME.machines[m]);
-    updateMachine();
+    changeMachine();
   }
 
   form.ingredient.innerHTML = "";
@@ -217,6 +251,71 @@ function checkSlots() {
   return bad.length === 0;
 }
 
+// ---------- Remembering inputs across refreshes ----------
+
+const STORAGE_PREFIX = "quality-loop:";
+
+function collectState(form) {
+  const state = { fields: {}, qualities: {}, modules: {}, tiers: {} };
+  for (const f of $$("input[name], select[name]", form)) state.fields[f.name] = f.value;
+  for (const s of $$(".quality-picker[data-name]", form)) state.qualities[s.dataset.name] = getQuality(s);
+  for (const s of $$(".module-picker[data-name]", form)) state.modules[s.dataset.name] = getModule(s);
+  for (const c of $$("[data-tier-inputs]", form)) state.tiers[c.dataset.tierInputs] = getTierInputs(c);
+  return state;
+}
+
+function applyState(form, state, hooks = {}) {
+  const setField = (name, value) => {
+    const f = form.elements[name];
+    if (!f) return;
+    // A select can lose options between versions (e.g. a removed recipe); keep the default then
+    if (f.tagName === "SELECT" && ![...f.options].some((o) => o.value === value)) return;
+    f.value = value;
+  };
+  // Recipe first, because choosing it rewrites the machine, ingredient and timing fields
+  if ("recipe" in state.fields) {
+    setField("recipe", state.fields.recipe);
+    hooks.recipe?.();
+  }
+  for (const [name, value] of Object.entries(state.fields)) if (name !== "recipe") setField(name, value);
+  for (const [name, q] of Object.entries(state.qualities)) {
+    const s = $(`.quality-picker[data-name=${name}]`, form);
+    if (s) setQuality(s, q);
+  }
+  for (const [name, m] of Object.entries(state.modules)) {
+    const s = $(`.module-picker[data-name=${name}]`, form);
+    if (s) setModule(s, m.level, m.quality);
+  }
+  for (const [name, values] of Object.entries(state.tiers)) {
+    const c = $(`[data-tier-inputs=${name}]`, form);
+    if (c) setTierInputs(c, values);
+  }
+  hooks.after?.();
+}
+
+function saveState(form) {
+  try {
+    localStorage.setItem(STORAGE_PREFIX + form.id, JSON.stringify(collectState(form)));
+  } catch {
+    // Storage can be blocked (private windows); the app works fine without it
+  }
+}
+
+function loadState(form) {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_PREFIX + form.id));
+  } catch {
+    return null;
+  }
+}
+
+// Restores a saved form and returns whether there was one to restore
+function restoreForm(form, hooks) {
+  const state = loadState(form);
+  if (state) applyState(form, state, hooks);
+  return !!state;
+}
+
 // ---------- Presets (from the README's worked examples) ----------
 
 const PRESETS = {
@@ -230,31 +329,28 @@ const PRESETS = {
     f.recycle_time.value = "";
     setQuality($(".quality-picker[data-name=keep]", f), 4);
   },
-  u238() {
+  holmium() {
     const f = $("#form-assembler");
-    setTierInputs($("[data-tier-inputs]", f), [8, 0, 0, 0, 0]);
-    f.recipe.value = "";
+    setTierInputs($("[data-tier-inputs]", f), [20, 0, 0, 0, 0]);
+    f.recipe.value = "electromagnetic-plant";
     updateRecipe();
-    f.machine.value = "assembling-machine-3";
-    updateMachine();
+    f.ingredient.value = "holmium-plate";
+    updateIngredient();
+    f.machine.value = "electromagnetic-plant";
+    changeMachine();
     f.research_prod.value = 0;
     setModule($(".module-picker[data-name=pmod]", f), 3, 4);
     setModule($(".module-picker[data-name=qmod]", f), 3, 4);
-    [40, 4, 2, 1, 1].forEach((n, i) => {
+    [4, 1, 1, 1, 1].forEach((n, i) => {
       f[`count_${i}`].value = n;
-      setQuality($(`.quality-picker[data-name=machine_quality_${i}]`, f), 4);
-      f[`prod_${i}`].value = i === 4 ? 4 : 0;
-      f[`qual_${i}`].value = i === 4 ? 0 : 4;
+      setQuality($(`.quality-picker[data-name=machine_quality_${i}]`, f), 0);
     });
-    f.rec_count.value = 8;
-    setQuality($(".quality-picker[data-name=rec_quality]", f), 4);
+    f.rec_count.value = 2;
+    setQuality($(".quality-picker[data-name=rec_quality]", f), 0);
     setModule($(".module-picker[data-name=rec_qmod]", f), 3, 4);
-    f.recipe_time.value = 10;
-    f.recipe_ratio.value = 1;
     f.recycle_time.value = "";
     setQuality($(".quality-picker[data-name=ing_keep]", f), 4);
     setQuality($(".quality-picker[data-name=prod_keep]", f), null);
-    checkSlots();
   },
 };
 
@@ -311,10 +407,10 @@ function renderRecycler(d, out) {
     <h2>Results</h2>
     <div class="stat-cards">
       <div class="stat-card q4"><div class="label">Legendary output</div>
-        <div class="value">${fmt(d.production_rate[4] * 3600, 1)} <small>/ hour</small></div></div>
+        <div class="value">${fmtFlow(d.production_rate[4] * 3600)} <small>/ hour</small></div></div>
       <div class="stat-card q${keepFrom}"><div class="label">Total kept output (${TIERS[keepFrom]}+)</div>
-        <div class="value">${fmt(output * 60, 1)} <small>/ min</small></div></div>
-      ${loadCard("Recycler load", d.recycler_load)}
+        <div class="value">${fmtFlow(output * 60)} <small>/ min</small></div></div>
+      ${loadCard("Recycler load", d.recycler_load, recyclerHint($("#form-recycler")), ICON("recycler"))}
     </div>
     <div class="section-title"><img src="${ICON("recycler")}" alt="">Products</div>
     <table class="results-table">
@@ -323,9 +419,9 @@ function renderRecycler(d, out) {
         ${d.flows.map((flow, i) => `
           <tr class="q${i}">
             <td>${tierName(i)}</td>
-            <td class="num">${fmt(flow, 1)}</td>
-            <td class="num">${fmt(d.production_rate[i] * 60, 1)}</td>
-            <td class="num">${fmt(d.production_rate[i] * 3600, 1)}</td>
+            <td class="num">${fmtFlow(flow)}</td>
+            <td class="num">${fmtFlow(d.production_rate[i] * 60)}</td>
+            <td class="num">${fmtFlow(d.production_rate[i] * 3600)}</td>
             <td>${statusTag(d.kept[i])}</td>
           </tr>`).join("")}
       </tbody>
@@ -338,11 +434,8 @@ function renderRecycler(d, out) {
 
 // ---------- Assembler loop ----------
 
-async function calculateAssembler() {
-  const f = $("#form-assembler");
-  const out = $("#results-assembler");
-  if (!checkSlots()) return;
-  const data = await post("/api/assembler-loop", {
+function assemblerRequest(f) {
+  return {
     input_rates: getTierInputs($("[data-tier-inputs]", f)),
     machine: f.machine.value,
     recipe: f.recipe.value || null,
@@ -361,73 +454,119 @@ async function calculateAssembler() {
     recycle_time: optionalNumber(f.recycle_time),
     ingredient_quality_to_keep: getQuality($(".quality-picker[data-name=ing_keep]", f)),
     product_quality_to_keep: getQuality($(".quality-picker[data-name=prod_keep]", f)),
-  }, out);
-  if (data) renderAssembler(data, out, GAME.machines[f.machine.value]);
+  };
 }
 
-function renderAssembler(d, out, machine) {
+async function calculateAssembler() {
+  const f = $("#form-assembler");
+  const out = $("#results-assembler");
+  if (!checkSlots()) return;
+  const data = await post("/api/assembler-loop", assemblerRequest(f), out);
+  if (data) {
+    renderAssembler(data, out, GAME.machines[f.machine.value], GAME.recipes[f.recipe.value], f.ingredient.value,
+      getTierInputs($("[data-tier-inputs]", f)).reduce((a, b) => a + b, 0));
+  }
+}
+
+// Fills in the machine counts and qualities the solver picks, then shows the result
+async function solveAssembler() {
+  const f = $("#form-assembler");
+  const status = $("#solve-status");
+  if (!checkSlots()) return;
+  status.classList.remove("error");
+  status.textContent = "Solving…";
+  let data;
+  try {
+    const res = await fetch("/api/solve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(assemblerRequest(f)) });
+    data = await res.json();
+    if (!res.ok) throw new Error(formatError(data));
+  } catch (err) {
+    status.classList.add("error");
+    status.textContent = err.message;
+    return;
+  }
+  data.tiers.forEach((t, i) => {
+    // A tier that needs no machines (e.g. a kept one) still needs a valid count in the form
+    f[`count_${i}`].value = Math.max(t.count, 1);
+    setQuality($(`.quality-picker[data-name=machine_quality_${i}]`, f), t.machine_quality);
+  });
+  f.rec_count.value = Math.max(data.recycler.count, 1);
+  setQuality($(".quality-picker[data-name=rec_quality]", f), data.recycler.quality);
+  saveState(f);
+  status.textContent = "Solved: the fewest machines per stage, at the lowest machine quality that still needs no more.";
+  calculateAssembler();
+}
+
+function renderAssembler(d, out, machine, recipe, ingredient, inputFlow) {
   const ing = d.ingredients;
   const prod = d.products;
-  const keptIng = ing.flows.reduce((s, x, i) => s + (ing.kept[i] ? x : 0), 0);
-  const keptProd = prod.flows.reduce((s, x, i) => s + (prod.kept[i] ? x : 0), 0);
+  const keptIng = ing.kept.indexOf(true);
+  const keptProd = prod.kept.indexOf(true);
+  const keptIngFlow = ing.flows.reduce((s, x, i) => s + (ing.kept[i] ? x : 0), 0);
   const loads = ing.flows.map((x, i) => (ing.kept[i] ? 0 : x / ing.max_flow[i]));
   const recLoad = d.recycler.flow / d.recycler.max_flow;
   const bottlenecks = loads.map((l, i) => (l > 1 ? TIERS[i] : null)).filter(Boolean);
   if (recLoad > 1) bottlenecks.push("Recyclers");
 
+  // Icons follow the recipe: the critical ingredient and the recipe's product
+  const ingIcon = ingredient ? ICON(GAME.items[ingredient].icon) : ICON("recycler");
+  const prodIcon = recipe ? ICON(recipe.icon) : ICON(machine.icon);
+  const name = (item, fallback) => (item ? GAME.items[item].name : fallback);
+  const ingName = name(ingredient, "ingredient");
+  const prodName = recipe ? recipe.name : "product";
+
+  // Only the lowest kept tier is shown for each output the user is looking for
+  const keptSection = (icon, title, flows, tier) => `
+    <div class="section-title"><img src="${icon}" alt="">${title}</div>
+    <table class="results-table">
+      <thead><tr><th>Quality</th><th>Flow / s</th><th>Flow / min</th><th>Flow / hour</th></tr></thead>
+      <tbody>
+        <tr class="q${tier}">
+          <td>${tierName(tier)}</td>
+          <td class="num">${fmtFlow(flows[tier])}</td>
+          <td class="num">${fmtFlow(flows[tier] * 60)}</td>
+          <td class="num">${fmtFlow(flows[tier] * 3600)}</td>
+        </tr>
+      </tbody>
+    </table>`;
+
   out.innerHTML = `
     <h2>Results</h2>
     <div class="stat-cards">
-      <div class="stat-card q4"><div class="label">Legendary ingredients${ing.kept[4] ? "" : " (assembled)"}</div>
-        <div class="value">${fmt(ing.flows[4] * 3600, 1)} <small>/ hour</small></div></div>
-      <div class="stat-card q4"><div class="label">Legendary products${prod.kept[4] ? "" : " (recycled)"}</div>
-        <div class="value">${fmt(prod.flows[4] * 3600, 1)} <small>/ hour</small></div></div>
-      ${loadCard("Recycler load", recLoad)}
-      <div class="stat-card"><div class="label">Bottlenecks</div>
-        <div class="value" style="font-size:18px;color:${bottlenecks.length ? "var(--red)" : "var(--green)"}">
-          ${bottlenecks.length ? bottlenecks.join(", ") : "None"}</div></div>
+      ${keptIng >= 0 ? outputCard(ingIcon, `${TIERS[keptIng]} ${ingName}`, ing.flows[keptIng]) : ""}
+      ${keptProd >= 0 ? outputCard(prodIcon, `${TIERS[keptProd]} ${prodName}`, prod.flows[keptProd]) : ""}
+      ${loadCard("Recycler load", recLoad, recyclerHint($("#form-assembler")), ICON("recycler"))}
+      <div class="stat-card" style="--q:${bottlenecks.length ? "var(--red)" : "var(--green)"}"><div class="label">Bottlenecks</div>
+        <div class="value" style="color:${bottlenecks.length ? "var(--red)" : "var(--green)"}">
+          ${bottlenecks.length ? `✘ <small>${bottlenecks.join(", ")}</small>` : "✔ <small>None</small>"}</div></div>
     </div>
-
-    <div class="section-title"><img src="${ICON("recycler")}" alt="">Ingredients
-      <span class="hint" style="margin-left:auto">kept: ${fmt(keptIng * 60, 1)} / min</span></div>
+    <div class="section-title"><img src="${ingIcon}" alt="">${ingName} (ingredients)
+      ${keptIng >= 0 ? `<span class="hint" style="margin-left:auto">kept: ${fmtFlow(keptIngFlow * 60)} / min</span>` : ""}</div>
     <table class="results-table">
       <thead><tr><th>Quality</th><th>Flow / s</th><th>Flow / min</th><th>Assembler capacity / s</th><th>Assembler load</th><th>Status</th></tr></thead>
       <tbody>
         ${ing.flows.map((flow, i) => `
           <tr class="q${i}">
             <td>${tierName(i)}</td>
-            <td class="num">${fmt(flow, 1)}</td>
-            <td class="num">${fmt(flow * 60, 1)}</td>
-            <td class="num">${ing.kept[i] ? "–" : fmt(ing.max_flow[i], 1)}</td>
+            <td class="num">${fmtFlow(flow)}</td>
+            <td class="num">${fmtFlow(flow * 60)}</td>
+            <td class="num">${ing.kept[i] ? "–" : fmtFlow(ing.max_flow[i])}</td>
             <td>${ing.kept[i] ? "" : loadBar(loads[i])}</td>
             <td>${statusTag(ing.kept[i], "Assembled")}</td>
           </tr>`).join("")}
       </tbody>
     </table>
-
-    <div class="section-title"><img src="${ICON(machine.icon)}" alt="">Products
-      <span class="hint" style="margin-left:auto">kept: ${fmt(keptProd * 60, 1)} / min</span></div>
-    <table class="results-table">
-      <thead><tr><th>Quality</th><th>Flow / s</th><th>Flow / min</th><th>Flow / hour</th><th>Status</th></tr></thead>
-      <tbody>
-        ${prod.flows.map((flow, i) => `
-          <tr class="q${i}">
-            <td>${tierName(i)}</td>
-            <td class="num">${fmt(flow, 1)}</td>
-            <td class="num">${fmt(flow * 60, 1)}</td>
-            <td class="num">${fmt(flow * 3600, 1)}</td>
-            <td>${statusTag(prod.kept[i], "Recycled")}</td>
-          </tr>`).join("")}
-      </tbody>
-    </table>
-
+    ${ingredientSupplyHint(recipe, ingredient, inputFlow)}
+    ${keptProd >= 0 ? keptSection(prodIcon, `${prodName} kept (${TIERS[keptProd]}${keptProd < 4 ? "+" : ""})`, prod.flows, keptProd) : ""}
+    
     <div class="section-title"><img src="${ICON(machine.icon)}" alt="">Machines</div>
     <table class="results-table">
-      <thead><tr><th>Assemblers crafting</th><th>Speed</th><th>Quality chance</th><th>Productivity bonus</th></tr></thead>
+      <thead><tr><th>Assemblers crafting</th><th>Count</th><th>Speed</th><th>Quality chance</th><th>Productivity bonus</th></tr></thead>
       <tbody>
         ${TIERS.map((_, i) => `
           <tr class="q${i}">
             <td>${tierName(i)}</td>
+            <td class="num">${$("#form-assembler")[`count_${i}`].value}</td>
             <td class="num">${fmt(d.derived.assembler_speeds[i], 3)}</td>
             <td class="num">${pct(d.derived.assembler_quality_chance[i])}</td>
             <td class="num">+${pct(d.derived.assembler_prod_bonus[i], 0)}</td>
@@ -436,7 +575,7 @@ function renderAssembler(d, out, machine) {
     </table>
     <p class="machine-stats">
       Recyclers: ${pct(d.derived.recycler_quality_chance)} quality chance, speed ${fmt(d.derived.recycler_speed, 2)},
-      handling ${fmt(d.recycler.flow, 1)} of ${fmt(d.recycler.max_flow, 1)} products / s.
+      handling ${fmtFlow(d.recycler.flow)} of ${fmtFlow(d.recycler.max_flow)} products / s.
     </p>`;
 }
 
@@ -455,10 +594,34 @@ function loadBar(load) {
     <div class="bar"><span style="width:${Math.min(load, 1) * 100}%"></span></div></div>`;
 }
 
-function loadCard(label, load) {
+// The raw flow of every recipe ingredient to supply, scaled from the critical ingredient's input rate
+function ingredientSupplyHint(recipe, ingredient, inputFlow) {
+  if (!recipe || !ingredient) return "";
+  const flows = Object.entries(recipe.ingredients).map(
+    ([item, n]) => `${GAME.items[item].name} ${fmtFlow((inputFlow * n) / recipe.ingredients[ingredient])} / s`,
+  );
+  return `<p class="hint">Raw input to supply: ${flows.join(" · ")}</p>`;
+}
+
+// Headline flow of one kept output, at its lowest kept quality
+function outputCard(icon, label, flow) {
+  const tier = TIERS.findIndex((t) => label.startsWith(t));
+  return `<div class="stat-card q${tier}"><div class="label"><img class="card-icon" src="${icon}" alt="">${label}</div>
+    <div class="value">${fmtFlow(flow * 60)} <small>/ min</small></div>
+    <div class="label">${fmtFlow(flow)} / s · ${fmtFlow(flow * 3600)} / hour</div></div>`;
+}
+
+function loadCard(label, load, hint = "", icon = "") {
   const colour = load > 1 ? "var(--red)" : load > 0.9 ? "var(--orange)" : "var(--green)";
-  return `<div class="stat-card" style="--q:${colour}"><div class="label">${label}</div>
+  const iconTag = icon ? `<img class="card-icon" src="${icon}" alt="">` : "";
+  return `<div class="stat-card" style="--q:${colour}"><div class="label">${iconTag}${label}${hint ? ` <small>(${hint})</small>` : ""}</div>
     <div class="value">${pct(load, 0)} <small>${load > 1 ? "add machines" : "of capacity"}</small></div></div>`;
+}
+
+// e.g. "8 × Legendary", from the recycler fields of a form
+function recyclerHint(form) {
+  const { count, quality } = recyclerSetup(form);
+  return `${count} × ${TIERS[quality]}`;
 }
 
 // ---------- Boot ----------
@@ -468,8 +631,20 @@ fetch("/api/game-data")
   .then((data) => {
     GAME = data;
     initForms();
-    PRESETS.tungsten();
-    PRESETS.u238();
+    const recyclerForm = $("#form-recycler");
+    const assemblerForm = $("#form-assembler");
+    if (!restoreForm(recyclerForm)) PRESETS.tungsten();
+    const restored = restoreForm(assemblerForm, {
+      recipe: updateRecipe,
+      after() {
+        if (assemblerForm.recipe.value) updateIngredient();
+        updateMachine();
+      },
+    });
+    if (!restored) PRESETS.u238();
+    // Event-driven saves can miss the last programmatic edits, so save the final state explicitly
+    saveState(recyclerForm);
+    saveState(assemblerForm);
     calculateRecycler();
     calculateAssembler();
   });

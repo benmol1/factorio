@@ -117,3 +117,30 @@ def test_assembler_loop_rejects_wrong_machine_for_recipe():
     assert client.post("/api/assembler-loop", json=u238_request(recipe="carbon-fiber")).status_code == 422
     ok = u238_request(recipe="toolbelt-equipment", recipe_ratio=0.1)
     assert client.post("/api/assembler-loop", json=ok).status_code == 200
+
+
+def test_solve_builds_have_no_bottlenecks():
+    """Simulating the solver's build shows every machine at or below capacity."""
+    req = u238_request()
+    solved = client.post("/api/solve", json=req).json()
+
+    req["tiers"] = [
+        t | {"count": max(s["count"], 1), "machine_quality": s["machine_quality"]}
+        for t, s in zip(req["tiers"], solved["tiers"], strict=True)
+    ]
+    req["recycler"] |= {"count": solved["recycler"]["count"], "quality": solved["recycler"]["quality"]}
+    result = client.post("/api/assembler-loop", json=req).json()
+
+    ingredients = result["ingredients"]
+    for flow, max_flow, kept in zip(ingredients["flows"], ingredients["max_flow"], ingredients["kept"], strict=True):
+        assert kept or flow <= max_flow + 1e-9
+    assert result["recycler"]["flow"] <= result["recycler"]["max_flow"] + 1e-9
+
+
+def test_solve_ignores_the_machines_in_the_request():
+    """The solver picks counts and qualities itself, whatever machines the request describes."""
+    base = client.post("/api/solve", json=u238_request()).json()
+    other = u238_request()
+    other["tiers"] = [t | {"count": 1, "machine_quality": 0} for t in other["tiers"]]
+    other["recycler"] |= {"count": 1, "quality": 0}
+    assert client.post("/api/solve", json=other).json() == base
