@@ -128,7 +128,13 @@ function initForms() {
 
   // Recipe dropdown
   const form = $("#form-assembler");
-  for (const [key, r] of Object.entries(GAME.recipes)) form.recipe.append(el("option", { value: key }, r.name));
+  for (const group of GAME.groups) {
+    const options = Object.entries(GAME.recipes)
+      .filter(([, r]) => r.group === group)
+      .sort(([, a], [, b]) => a.name.localeCompare(b.name))
+      .map(([key, r]) => el("option", { value: key }, r.name));
+    form.recipe.append(el("optgroup", { label: group }, ...options));
+  }
   form.recipe.addEventListener("change", updateRecipe);
   form.ingredient.addEventListener("change", updateIngredient);
 

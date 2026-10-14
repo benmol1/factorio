@@ -144,3 +144,10 @@ def test_solve_ignores_the_machines_in_the_request():
     other["tiers"] = [t | {"count": 1, "machine_quality": 0} for t in other["tiers"]]
     other["recycler"] |= {"count": 1, "quality": 0}
     assert client.post("/api/solve", json=other).json() == base
+
+
+def test_recipes_grouped():
+    """Every recipe belongs to one of the in-game tabs the picker lists."""
+    data = client.get("/api/game-data").json()
+    assert data["groups"] == ["Production", "Logistics", "Intermediate", "Combat", "Fluids"]
+    assert all(r["group"] in data["groups"] for r in data["recipes"].values())
