@@ -285,6 +285,7 @@ def assembler_recycler_loop(
 
         if sum(abs(result_flows[-2] - result_flows[-1])) < 1e-2:
             # There's nothing left in the system
+            print(f"AR loop converged after {ii} iterations")
             break
 
     # Create the output dataframe
@@ -307,27 +308,27 @@ if __name__ == "__main__":
     pd.set_option("colheader_justify", "right")
     pd.options.display.float_format = "{:.2f}".format
 
-    n_slots = 4
-    base_prod = 1.5
+    n_slots = 5
+    base_prod = 1.5 + 1.3
     full_qual_config = [(0, n_slots)] * (NUM_TIERS - 1) + [(n_slots, 0)]
     full_prod_config = [(n_slots, 0)] * NUM_TIERS
     optimal_leg_config = [(n_slots - 1, 1)] * (NUM_TIERS - 1) + [(n_slots, 0)]
 
-    # AR loop for producing legendary gears via fast underground belts
-    input_vector = np.array([100.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+    # AR loop for producing legendary blue circuits
+    input_vector = np.array([4.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
     results = assembler_recycler_loop(
         input_vector=input_vector,
-        assembler_modules_config=full_qual_config,
-        product_quality_to_keep=None,
-        ingredient_quality_to_keep=NUM_TIERS,
+        assembler_modules_config=full_prod_config,
+        product_quality_to_keep=NUM_TIERS,
+        ingredient_quality_to_keep=None,
         base_prod_bonus=base_prod,
         recipe_ratio=1/20,  # NB: ratio of products:ingredients in the recipe
-        prod_module_bonus=0,
+        prod_module_bonus=BEST_PROD_MODULE,
         qual_module_bonus=BEST_QUAL_MODULE,
-        speed_assemblers=[8, 3.2, 3.2, 3.2, 3.2],  # Legendary foundries in the normal tier, normal otherwise with 4x modules
-        speed_recycler=0.76,  # epic recyclers with 4x quality modules each
-        recipe_time=2,
-        num_assemblers=[2, 1, 1, 1, 1],
+        speed_assemblers=[0.5, 0.5, 0.5, 0.5, 0.5],  # EM plants with 5x productivity modules
+        speed_recycler=0.4,  # normal recyclers with 4x quality modules each
+        recipe_time=10,
+        num_assemblers=[20, 20, 20, 20, 5],
         num_recyclers=2,
         verbose=True,
     )

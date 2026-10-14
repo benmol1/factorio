@@ -54,7 +54,7 @@ uv run pytest                                           # run the test suite
 ### 🖥️ Web frontend
 
 ```bash
-uv run uvicorn src.web.app:app --reload   # then open http://127.0.0.1:8000
+uv run uvicorn src.web.app:app --reload --port 2048  # then open http://127.0.0.1:2048
 ```
 
 Pick machines, module tiers and qualities in game terms. The app works out speeds, quality chances and
