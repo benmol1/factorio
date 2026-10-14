@@ -128,7 +128,13 @@ function initForms() {
 
   // Recipe dropdown
   const form = $("#form-assembler");
-  for (const [key, r] of Object.entries(GAME.recipes)) form.recipe.append(el("option", { value: key }, r.name));
+  for (const group of GAME.groups) {
+    const options = Object.entries(GAME.recipes)
+      .filter(([, r]) => r.group === group)
+      .sort(([, a], [, b]) => a.name.localeCompare(b.name))
+      .map(([key, r]) => el("option", { value: key }, r.name));
+    form.recipe.append(el("optgroup", { label: group }, ...options));
+  }
   form.recipe.addEventListener("change", updateRecipe);
   form.ingredient.addEventListener("change", updateIngredient);
 
@@ -561,12 +567,13 @@ function renderAssembler(d, out, machine, recipe, ingredient, inputFlow) {
     
     <div class="section-title"><img src="${ICON(machine.icon)}" alt="">Machines</div>
     <table class="results-table">
-      <thead><tr><th>Assemblers crafting</th><th>Count</th><th>Speed</th><th>Quality chance</th><th>Productivity bonus</th></tr></thead>
+      <thead><tr><th>Assemblers crafting</th><th>Count</th><th>Machine quality</th><th>Speed</th><th>Quality chance</th><th>Productivity bonus</th></tr></thead>
       <tbody>
         ${TIERS.map((_, i) => `
           <tr class="q${i}">
             <td>${tierName(i)}</td>
             <td class="num">${$("#form-assembler")[`count_${i}`].value}</td>
+            <td>${tierName(getQuality($(`.quality-picker[data-name=machine_quality_${i}]`, $("#form-assembler"))) ?? 0)}</td>
             <td class="num">${fmt(d.derived.assembler_speeds[i], 3)}</td>
             <td class="num">${pct(d.derived.assembler_quality_chance[i])}</td>
             <td class="num">+${pct(d.derived.assembler_prod_bonus[i], 0)}</td>
