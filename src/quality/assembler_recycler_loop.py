@@ -285,7 +285,7 @@ def assembler_recycler_loop(
 
         if sum(abs(result_flows[-2] - result_flows[-1])) < 1e-2:
             # There's nothing left in the system
-            print(f"AR loop converged after {ii} iterations")
+            if verbose: print(f"AR loop converged after {ii} iterations")
             break
 
     # Create the output dataframe
