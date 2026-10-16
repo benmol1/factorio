@@ -15,7 +15,8 @@ production matrices as the loops. The flows are the steady state, found by solvi
 Run as `python -m src.quality.pipe_chain` from the repo root.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from itertools import product
 
 import numpy as np
 
@@ -169,9 +170,77 @@ def report(cfg: ChainConfig) -> None:
     print("  machine-equivalents at 100% load:", {k: round(v, 1) for k, v in res["loads"].items()})
 
 
+MODULE_SPLITS = [(p, q) for p in range(5) for q in range(5 - p)]  # (prod, quality) with at most 4 modules
+
+
+@dataclass(frozen=True)
+class Optimum:
+    """The best configuration found for a machine budget, scaled so the budget is exactly used."""
+
+    cfg: ChainConfig  # lava_per_second is the rate that exactly uses the budget
+    legendary_per_second: float
+    loads: dict[str, float]  # Machines of each kind used at that lava rate
+
+
+def optimise(crafting_machines: float, recyclers: float) -> Optimum:
+    """Find the module setup and lava rate that maximise legendary plates/s within a machine budget.
+
+    Lava is free, so the only limits are the total crafting machines (lava + pipe + pipe to ground foundries and plate
+    assemblers, pooled) and the recyclers. Flows and loads are linear in the lava rate, so each setup is solved once
+    and scaled until the tighter of the two budgets binds. Machine counts are fractional (no rounding up).
+    """
+    best: Optimum | None = None
+    for pipe_foundry in MODULE_SPLITS:
+        for ptg_foundry in MODULE_SPLITS:
+            for plate_assembler in MODULE_SPLITS:
+                for lava_prod, recycler_qual, min_tier in product(range(5), range(5), range(LEGENDARY)):
+                    cfg = ChainConfig(
+                        lava_foundry_prod_modules=lava_prod,
+                        pipe_foundry=pipe_foundry,
+                        ptg_foundry=ptg_foundry,
+                        plate_assembler=plate_assembler,
+                        recycler_quality_modules=recycler_qual,
+                        min_plate_tier=min_tier,
+                    )
+                    try:
+                        res = solve_chain(cfg)
+                    except np.linalg.LinAlgError:  # Loop gain of exactly 1: no finite steady state
+                        continue
+                    if min(res["pipes"].min(), res["plates"].min()) < 0:  # Loop gain above 1: no steady state
+                        continue
+                    loads = res["loads"]
+                    crafting = sum(v for k, v in loads.items() if k != "recyclers")
+                    factor = min(crafting_machines / crafting, recyclers / loads["recyclers"])
+                    legendary = res["legendary_plates"] * factor
+                    if best is None or legendary > best.legendary_per_second:
+                        scaled = replace(cfg, lava_per_second=cfg.lava_per_second * factor)
+                        best = Optimum(scaled, legendary, {k: v * factor for k, v in loads.items()})
+    assert best is not None
+    return best
+
+
+def report_optimum(crafting_machines: float, recyclers: float) -> None:
+    """Print the best setup for a budget."""
+    opt = optimise(crafting_machines, recyclers)
+    c = opt.cfg
+    print(f"budget: {crafting_machines:g} crafting machines, {recyclers:g} recyclers")
+    print(
+        f"  LEGENDARY PLATES: {opt.legendary_per_second:.4f}/s = {opt.legendary_per_second * 60:.1f}/min "
+        f"(lava {c.lava_per_second:.1f}/s)"
+    )
+    print(
+        f"  (P,Q): lava foundry P={c.lava_foundry_prod_modules} pipe foundry={c.pipe_foundry} "
+        f"ptg foundry={c.ptg_foundry} plate assembler={c.plate_assembler} recycler Q={c.recycler_quality_modules} "
+        f"min plate tier={c.min_plate_tier}"
+    )
+    print("  machines used:", {k: round(v, 2) for k, v in opt.loads.items()})
+
+
 if __name__ == "__main__":
     np.set_printoptions(precision=3, suppress=True, linewidth=200)
     report(ChainConfig())
     report(ChainConfig(min_plate_tier=0))
     report(ChainConfig(ptg_foundry=(4, 0)))
     report(ChainConfig(ptg_foundry=(2, 2), pipe_foundry=(0, 4)))
+    for budget in [(10, 2), (20, 4), (40, 4)]:
+        report_optimum(*budget)
