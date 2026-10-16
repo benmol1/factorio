@@ -157,6 +157,7 @@ def get_recycler_parameters(
     quality_to_keep: int = NUM_TIERS,
     recipe_ratio: float = 1,
     qual_module_bonus: float = BEST_QUAL_MODULE,
+    recycle_ratio: float | None = None,
 ) -> list[tuple[float, float]]:
     """Generate recycler parameters for the transition matrix.
 
@@ -164,6 +165,9 @@ def get_recycler_parameters(
         quality_to_keep: Minimum quality tier to keep (don't recycle). Defaults to legendary.
         recipe_ratio: Ratio of products to ingredients in the recipe.
         qual_module_bonus: Quality chance bonus per module (recyclers use 4 quality modules).
+        recycle_ratio: Loop ingredients returned per product recycled. Defaults to `0.25 / recipe_ratio`, i.e.
+            recycling is the assembly recipe in reverse. Differs when the recipe is an alternative that doesn't
+            define the recycling (e.g. foundry casting); 0 if recycling doesn't return the loop ingredient.
 
     Returns:
         List of (quality_chance, production_ratio) tuples per tier.
@@ -172,7 +176,7 @@ def get_recycler_parameters(
     saving_rows = NUM_TIERS - recycling_rows
 
     # Recycler stats
-    production_ratio = 0.25 / recipe_ratio
+    production_ratio = 0.25 / recipe_ratio if recycle_ratio is None else recycle_ratio
     quality_chance = 4 * qual_module_bonus
 
     return [(quality_chance, production_ratio)] * recycling_rows + [(0, 0)] * saving_rows
@@ -194,6 +198,7 @@ def assembler_recycler_loop(
     num_recyclers: int = 1,
     recycle_time: float | None = None,
     recycler_qual_module_bonus: float | None = None,
+    recycle_ratio: float | None = None,
     verbose: bool = False,
 ) -> np.array:
     """Simulate an assembler-recycler loop to calculate quality tier flows.
@@ -222,6 +227,8 @@ def assembler_recycler_loop(
             item's result count, so read it from the game. Defaults to `recipe_time / 16` (the pre-2.1.13 rule).
         recycler_qual_module_bonus: Quality chance bonus per quality module in the recyclers. Defaults to
             `qual_module_bonus`.
+        recycle_ratio: Loop ingredients returned per product recycled. Defaults to `0.25 / recipe_ratio`; see
+            `get_recycler_parameters`.
         verbose: If True, print debug information.
 
     Returns:
@@ -245,6 +252,7 @@ def assembler_recycler_loop(
         product_quality_to_keep if product_quality_to_keep is not None else NUM_TIERS + 1,
         recipe_ratio,
         qual_module_bonus if recycler_qual_module_bonus is None else recycler_qual_module_bonus,
+        recycle_ratio,
     )
     # Create the transition matrix
     transition_matrix = create_transition_matrix(
