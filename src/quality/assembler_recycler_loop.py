@@ -81,40 +81,6 @@ def create_max_flow_vector(crafting_time_vector: np.ndarray, recipe_ratio: float
     return mf_vector
 
 
-def compute_crafting_time(
-    input_flows: np.ndarray, prev_crafting_time: list, recipe_ratio: float, ct_vector: np.ndarray
-) -> list:
-    """Compute the crafting time for one iteration of the AR loop.
-
-    Args:
-        input_flows: Flow rates entering each tier this iteration.
-        prev_crafting_time: Previous iteration's crafting time result.
-        recipe_ratio: Ratio of products to ingredients in the recipe.
-        ct_vector: Crafting time vector from create_crafting_time_vector.
-
-    Returns:
-        List containing [total_crafting_time, bottleneck_tier_index].
-    """
-    ct = 0
-
-    # The assemblers are in parallel, so only the max crafting time is relevant
-    assembler_crafting_times = np.multiply(input_flows[:NUM_TIERS] * recipe_ratio, ct_vector[:NUM_TIERS])
-    max_assembler_crafting_time = np.max(assembler_crafting_times)
-    max_assembler_crafting_time_tier = np.argmax(assembler_crafting_times) + 1
-    ct += max_assembler_crafting_time
-
-    # The recyclers are in series, so the total crafting time is relevant
-    recycler_crafting_time = np.dot(input_flows[NUM_TIERS:], ct_vector[NUM_TIERS:])
-    ct += recycler_crafting_time
-
-    if max_assembler_crafting_time > recycler_crafting_time:
-        max_time_index = max_assembler_crafting_time_tier
-    else:
-        max_time_index = NUM_TIERS + 1
-
-    return [ct, max_time_index]
-
-
 def get_assembler_parameters(
     assembler_modules_config: tuple[float, float] | list[tuple[float, float]],
     quality_to_keep: int = NUM_TIERS,
@@ -232,7 +198,7 @@ def assembler_recycler_loop(
         verbose: If True, print debug information.
 
     Returns:
-        Tuple of (flow_vector, transition_matrix, total_crafting_time, max_flow_vector).
+        Tuple of (flow_vector, transition_matrix, max_flow_vector).
     """
     if isinstance(assembler_modules_config, tuple):
         assembler_modules_config = [assembler_modules_config] * NUM_TIERS
@@ -275,53 +241,34 @@ def assembler_recycler_loop(
     if type(input_vector) in (float, int):
         input_vector = np.array([input_vector] + [0] * (NUM_TIERS * 2 - 1))
 
-    # TODO: replace the iteration below with the closed-form steady state, as pipe_chain.solve_chain does.
-    #   The loop sums x0 + x0 T + x0 T^2 + ..., which equals x0 (I - T)^-1, so the summed flows are just
-    #       np.linalg.inv(np.eye(2 * NUM_TIERS) - transition_matrix)   (or np.linalg.solve, which is more stable)
-    #   applied to input_vector. Benefits: no 1e-2 truncation error (the loop is ~0.02 off the exact answer in the
-    #   blue circuit example), no iteration count, and no infinite loop if productivity makes the loop gain >= 1.
-    #   - Catch np.linalg.LinAlgError (gain of exactly 1) and treat negative flows as gain > 1: neither has a finite
-    #     steady state, so raise a clear error rather than returning garbage.
-    #   - Check against the current output first: run the __main__ example before and after and compare the flows
-    #     (they should agree to ~0.02), then check solver.py and the web app still give sensible machine counts.
-    #   - Decide what to do with the per-iteration pieces: result_flows / the DataFrame / "AR loop converged after N
-    #     iterations" only exist to show the iterations. Keep them behind `verbose` as an illustration, or drop them.
-    #   - total_crafting_time (and compute_crafting_time) is accumulated per iteration, so it has no closed form here.
-    #     grep for its callers; if nothing relies on it, remove it, since machine counts follow from the flows alone
-    #     (flow x craft time / speed), as in solver.py.
-    # Initialise loop variable and output arrays
-    ii = 0
-    result_flows = [input_vector]
-    crafting_time = [[0.0, 0]]
-    total_crafting_time = 0.0
-
-    while True:
-        ii += 1
-        ct_this_iteration = compute_crafting_time(
-            result_flows[-1], crafting_time[-1], recipe_ratio, crafting_time_vector
-        )
-
-        total_crafting_time += ct_this_iteration[0]
-        crafting_time.append(ct_this_iteration)
-        result_flows.append(result_flows[-1] @ transition_matrix)
-
-        if sum(abs(result_flows[-2] - result_flows[-1])) < 1e-2:
-            # There's nothing left in the system
-            if verbose:
-                print(f"AR loop converged after {ii} iterations")
-            break
-
-    # Create the output dataframe
-    col_headers = ["I1", "I2", "I3", "I4", "I5", "P1", "P2", "P3", "P4", "P5"]
-    output_df = pd.DataFrame(data=result_flows, columns=col_headers)
-    crafting_time_df = pd.DataFrame(data=crafting_time, columns=["Crafting time", "Max time index"])
-    output_df = output_df.join(crafting_time_df)
+    # Calculate the steady state flows using the formula:
+    # x = x_0 * (I - T)^-1
+    steady_state_matrix = np.eye(2 * NUM_TIERS) - transition_matrix
+    try:
+        steady_state_flows = input_vector @ np.linalg.inv(steady_state_matrix)
+    except np.linalg.LinAlgError as err:
+        raise ValueError("The transition matrix could not be inverted.") from err
 
     if verbose:
-        print("\n## Iterations:")
-        print(output_df.head(10))
+        # Illustration only: the flows after each pass through the loop, which sum to the steady state
+        ii = 0
+        result_flows = [input_vector]
+        while True:
+            ii += 1
+            result_flows.append(result_flows[-1] @ transition_matrix)
 
-    return sum(result_flows), transition_matrix, total_crafting_time, max_flow_vector
+            if sum(abs(result_flows[-2] - result_flows[-1])) < 1e-3:
+                # There's nothing left in the system
+                print(f"AR loop converged after {ii} iterations")
+                break
+
+        col_headers = ["I1", "I2", "I3", "I4", "I5", "P1", "P2", "P3", "P4", "P5"]
+        print("\n## Iterations:")
+        print(pd.DataFrame(data=result_flows, columns=col_headers).head(10))
+
+        steady_state_flows = sum(result_flows)
+
+    return steady_state_flows, transition_matrix, max_flow_vector
 
 
 if __name__ == "__main__":
@@ -338,7 +285,7 @@ if __name__ == "__main__":
     optimal_leg_config = [(n_slots - 1, 1)] * (NUM_TIERS - 1) + [(n_slots, 0)]
 
     # AR loop for producing legendary blue circuits
-    input_vector = np.array([4.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+    input_vector = np.array([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
     results = assembler_recycler_loop(
         input_vector=input_vector,
         assembler_modules_config=full_prod_config,
@@ -350,16 +297,15 @@ if __name__ == "__main__":
         qual_module_bonus=BEST_QUAL_MODULE,
         speed_assemblers=[0.5, 0.5, 0.5, 0.5, 0.5],  # EM plants with 5x productivity modules
         speed_recycler=0.4,  # normal recyclers with 4x quality modules each
-        recipe_time=10,
-        num_assemblers=[20, 20, 20, 20, 5],
-        num_recyclers=2,
+        recipe_time=2,
+        num_assemblers=[2, 2, 2, 2, 1],
+        num_recyclers=1,
         verbose=True,
     )
 
     flows = results[0]
     transition_matrix = results[1]
-    total_crafting_time = results[2]
-    max_flow_vector = results[3]
+    max_flow_vector = results[2]
 
     flows_with_summed_recyclers = np.concatenate((flows[:NUM_TIERS], np.array([sum(flows[NUM_TIERS:])])))
 

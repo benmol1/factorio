@@ -140,7 +140,7 @@ class TestAssemblerRecyclerLoop:
 
     def test_output_shape(self):
         """Output flow vector should have 2*NUM_TIERS elements."""
-        flows, _, _, _ = assembler_recycler_loop(
+        flows, _, _ = assembler_recycler_loop(
             100.0,
             assembler_modules_config=(0, 4),
         )
@@ -148,7 +148,7 @@ class TestAssemblerRecyclerLoop:
 
     def test_scalar_input(self):
         """Scalar input should be converted to array."""
-        flows, _, _, _ = assembler_recycler_loop(
+        flows, _, _ = assembler_recycler_loop(
             100.0,
             assembler_modules_config=(0, 4),
         )
@@ -157,7 +157,7 @@ class TestAssemblerRecyclerLoop:
     def test_legendary_ingredients_output(self):
         """Should produce legendary ingredients when ingredient_quality_to_keep=5."""
         # Use full quality config with base productivity to ensure output
-        flows, _, _, _ = assembler_recycler_loop(
+        flows, _, _ = assembler_recycler_loop(
             100.0,
             assembler_modules_config=(0, 4),
             ingredient_quality_to_keep=5,
@@ -170,7 +170,7 @@ class TestAssemblerRecyclerLoop:
     def test_legendary_products_output(self):
         """Should produce legendary products when product_quality_to_keep=5."""
         # Use full quality config with base productivity to ensure output
-        flows, _, _, _ = assembler_recycler_loop(
+        flows, _, _ = assembler_recycler_loop(
             100.0,
             assembler_modules_config=(0, 4),
             ingredient_quality_to_keep=None,
@@ -182,7 +182,7 @@ class TestAssemblerRecyclerLoop:
 
     def test_returns_transition_matrix(self):
         """Should return a valid transition matrix."""
-        _, mat, _, _ = assembler_recycler_loop(
+        _, mat, _ = assembler_recycler_loop(
             100.0,
             assembler_modules_config=(0, 4),
         )
@@ -191,11 +191,32 @@ class TestAssemblerRecyclerLoop:
     def test_list_config_per_tier(self):
         """Should accept list of configs per tier."""
         config = [(0, 4), (0, 4), (0, 4), (0, 4), (4, 0)]
-        flows, _, _, _ = assembler_recycler_loop(
+        flows, _, _ = assembler_recycler_loop(
             100.0,
             assembler_modules_config=config,
         )
         assert flows.shape == (NUM_TIERS * 2,)
+
+    def test_verbose_flows_are_truncated_steady_state(self):
+        """Verbose mode sums the iterations until they converge, so it falls just short of the exact inverse."""
+        kwargs = dict(
+            input_vector=np.array([4.0] + [0.0] * (NUM_TIERS * 2 - 1)),
+            assembler_modules_config=[(5, 0)] * NUM_TIERS,
+            product_quality_to_keep=NUM_TIERS,
+            ingredient_quality_to_keep=None,
+            base_prod_bonus=2.8,
+            recipe_ratio=1 / 20,
+            recipe_time=10,
+            speed_assemblers=[0.5] * NUM_TIERS,
+            speed_recycler=0.4,
+        )
+        exact, _, _ = assembler_recycler_loop(**kwargs)
+        truncated, _, _ = assembler_recycler_loop(**kwargs, verbose=True)
+
+        np.testing.assert_allclose(truncated, exact, atol=1e-2)
+        assert not np.array_equal(truncated, exact)
+        # Every iteration adds non-negative flow, so stopping early can only under-count
+        assert np.all(truncated <= exact)
 
 
 class TestRecycleTime:
@@ -227,8 +248,8 @@ class TestRecycleTime:
             recipe_time=16,
             speed_recycler=1,
         )
-        _, _, _, max_flow_default = assembler_recycler_loop(**kwargs)
-        _, _, _, max_flow_fast = assembler_recycler_loop(**kwargs, recycle_time=0.5)
+        _, _, max_flow_default = assembler_recycler_loop(**kwargs)
+        _, _, max_flow_fast = assembler_recycler_loop(**kwargs, recycle_time=0.5)
         # Default recycle time is 16 / 16 = 1s, so halving it doubles the recycler max flow
         np.testing.assert_allclose(max_flow_fast[NUM_TIERS:], 2 * max_flow_default[NUM_TIERS:])
 

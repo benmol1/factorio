@@ -219,7 +219,7 @@ def run_assembler_loop(req: AssemblerLoopRequest) -> dict:
     ingredient_keep = loop["ingredient_quality_to_keep"]
     product_keep = loop["product_quality_to_keep"]
 
-    flows, _, _, max_flow = assembler_recycler_loop(
+    flows, _, max_flow = assembler_recycler_loop(
         **loop,
         speed_assemblers=speeds,
         speed_recycler=rec_speed,

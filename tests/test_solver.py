@@ -23,7 +23,7 @@ U238_LOOP = {
 
 def loads(counts_assemblers: list[int], counts_recyclers: int, **loop):
     """Assembler and recycler load (flow / capacity) for the given machine counts."""
-    flows, _, _, max_flow = assembler_recycler_loop(
+    flows, _, max_flow = assembler_recycler_loop(
         **loop, num_assemblers=counts_assemblers, num_recyclers=counts_recyclers
     )
     kept = loop["ingredient_quality_to_keep"]

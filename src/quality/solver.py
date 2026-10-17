@@ -82,7 +82,7 @@ def solve_machine_counts(
         speed_assemblers = [1] * NUM_TIERS
 
     # One machine per stage makes the "max flow" vector the capacity of a single machine
-    flows, _, _, single_machine_max_flow = assembler_recycler_loop(
+    flows, _, single_machine_max_flow = assembler_recycler_loop(
         input_vector=input_vector,
         assembler_modules_config=assembler_modules_config,
         product_quality_to_keep=product_quality_to_keep,
