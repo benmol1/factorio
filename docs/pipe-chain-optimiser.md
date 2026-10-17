@@ -9,16 +9,27 @@ Run it with `uv run -m src.quality.pipe_chain`.
 ## 1. The idea in one picture
 
 ```mermaid
-flowchart TD
+flowchart LR
     lava([Lava]) --> LF[Lava foundry]
     LF -->|molten iron, ~99.7%| PTGF[Pipe-to-ground foundry]
     LF -.->|molten iron, ~0.3%: the seed| PF[Pipe foundry]
     PF -.->|pipes| PTGF
     PTGF -->|pipe to ground| R[Recycler]
+    R ==>|legendary plates| OUT([Product])
     R -->|pipes| PTGF
     R -->|plates below legendary| PA[Pipe assembler]
     PA -->|pipes| PTGF
-    R ==>|legendary plates| OUT([Product])
+
+    classDef source fill:#fde68a,stroke:#b45309,color:#1f2937
+    classDef foundry fill:#fed7aa,stroke:#c2410c,color:#1f2937
+    classDef recycler fill:#bbf7d0,stroke:#15803d,color:#1f2937
+    classDef assembler fill:#bfdbfe,stroke:#1d4ed8,color:#1f2937
+    classDef product fill:#e9d5ff,stroke:#7e22ce,stroke-width:3px,color:#1f2937
+    class lava source
+    class LF,PF,PTGF foundry
+    class R recycler
+    class PA assembler
+    class OUT product
 ```
 
 Only **legendary iron plates** leave the system. Everything else goes round again, and each trip through a machine
