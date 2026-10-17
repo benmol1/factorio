@@ -76,41 +76,37 @@ def recycler_loop(
         print("## Transition matrix:\n", transition_matrix)
         print("## Crafting time vector:\n", crafting_time_vector)
 
-    # Initialise loop variable and output arrays
-    ii = 0
-    result_flows = [input_vector]
-    crafting_time = [[0.0, 0, False]]
-    total_crafting_time = 0
-
-    while True:
-        ii += 1
-        ct_this_iteration = compute_crafting_time(
-            result_flows[-1], crafting_time[-1], recipe_ratio, crafting_time_vector
-        )
-
-        total_crafting_time += ct_this_iteration[0]
-        crafting_time.append(ct_this_iteration)
-        result_flows.append(result_flows[-1] @ transition_matrix)
-
-        if sum(abs(result_flows[-2] - result_flows[-1])) < 1e-6:
-            # There's nothing left in the system
-            break
-
-    # Create the output dataframe
-    col_headers = ["P1", "P2", "P3", "P4", "P5"]
-    output_df = pd.DataFrame(data=result_flows, columns=col_headers)
-    crafting_time_df = pd.DataFrame(data=crafting_time, columns=["Crafting time", "Max time index", "Bottleneck"])
-    output_df = output_df.join(crafting_time_df)
+    # Calculate the steady state flows using the formula:
+    # x = x_0 * (I - T)^-1
+    steady_state_matrix = np.eye(NUM_TIERS) - transition_matrix
+    try:
+        steady_state_flows = input_vector @ np.linalg.inv(steady_state_matrix)
+    except np.linalg.LinAlgError as err:
+        raise ValueError("The transition matrix could not be inverted.") from err
 
     if verbose:
+        # Illustration only: the flows after each pass through the loop, which sum to the steady state
+        ii = 0
+        result_flows = [input_vector]
+        while True:
+            ii += 1
+            result_flows.append(result_flows[-1] @ transition_matrix)
+
+            if sum(abs(result_flows[-2] - result_flows[-1])) < 1e-3:
+                # There's nothing left in the system
+                print(f"Recycler loop converged after {ii} iterations")
+                break
+
+        col_headers = ["P1", "P2", "P3", "P4", "P5"]
         print("## Iterations:")
-        print(output_df.head(10))
+        print(pd.DataFrame(data=result_flows, columns=col_headers).head(10))
 
-        if sum(output_df["Bottleneck"] > 0):
-            print(output_df[output_df["Bottleneck"]])
-            output_df.to_csv("output_df.csv")
+        steady_state_flows = sum(result_flows)
 
-    return sum(result_flows), transition_matrix, total_crafting_time
+    # The recyclers are in series, so the total crafting time is the time to process every item that flows through
+    total_crafting_time = float(steady_state_flows @ crafting_time_vector)
+
+    return steady_state_flows, transition_matrix, total_crafting_time
 
 
 def create_crafting_time_vector(
@@ -138,38 +134,6 @@ def create_crafting_time_vector(
     res = [recycle_time / speed_recycler] * NUM_TIERS
 
     return np.array(res) / num_recyclers
-
-
-def compute_crafting_time(
-    input_flows: np.ndarray, prev_crafting_time: list, recipe_ratio: float, ct_vector: np.ndarray
-) -> list:
-    """Compute the crafting time for one iteration of the recycler loop.
-
-    Args:
-        input_flows: Flow rates entering each tier this iteration.
-        prev_crafting_time: Previous iteration's crafting time result.
-        recipe_ratio: Ratio of products to ingredients in the recipe.
-        ct_vector: Crafting time vector from create_crafting_time_vector.
-
-    Returns:
-        List containing [total_crafting_time, max_time_index, is_bottleneck].
-    """
-    ct = 0
-
-    # The recyclers are in series, so the total crafting time is relevant
-    recycler_crafting_time = np.dot(input_flows, ct_vector)
-    ct += recycler_crafting_time
-
-    # This is a pure recycler loop, so the recyclers must always be the most time-consuming component of each iteration
-    max_time_index = NUM_TIERS + 1
-
-    # Compare the crafting time of this iteration to the previous one; if the crafting time here is greater then
-    # report the bottleneck
-    bottleneck = False
-    if (prev_crafting_time[0] > 0) and (ct > 1) and (ct - prev_crafting_time[0] > 0.1):
-        bottleneck = True
-
-    return [ct, max_time_index, bottleneck]
 
 
 def get_production_rate(

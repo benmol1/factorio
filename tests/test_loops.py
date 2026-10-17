@@ -76,6 +76,18 @@ class TestRecyclerLoop:
         flows_high, _, _ = recycler_loop(100.0, quality_chance=0.5)
         assert flows_high[4] > flows_low[4]
 
+    def test_verbose_flows_are_truncated_steady_state(self):
+        """Verbose mode sums the iterations until they converge, so it falls just short of the exact inverse."""
+        kwargs = dict(input_vector=np.array([45.0, 15.0, 0, 0, 0]), quality_chance=4 * BEST_QUAL_MODULE)
+        exact, _, exact_time = recycler_loop(**kwargs)
+        truncated, _, truncated_time = recycler_loop(**kwargs, verbose=True)
+
+        np.testing.assert_allclose(truncated, exact, atol=1e-2)
+        assert not np.array_equal(truncated, exact)
+        # Every iteration adds non-negative flow, so stopping early can only under-count
+        assert np.all(truncated <= exact)
+        assert truncated_time <= exact_time
+
 
 class TestAssemblerRecyclerParameters:
     """Tests for parameter generation functions."""
