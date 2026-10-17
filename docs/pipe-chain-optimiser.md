@@ -8,16 +8,17 @@ Run it with `uv run -m src.quality.pipe_chain`.
 
 ## 1. The idea in one picture
 
-```
-lava --[lava foundry]--> molten iron --[pipe foundry]--> pipes
-                                                           |
-              +--------------------------------------------+
-              v
- pipes + molten iron --[pipe-to-ground foundry]--> pipe to ground --[recycler]--> pipes + iron plates
-              ^                                                                       |     |
-              |                                                                       |     +--> LEGENDARY plates: leave (the product)
-              +------------------- [pipe assembler] <-- plates below legendary <-----+
-              +---------------------------------------------- pipes -----------------+
+```mermaid
+flowchart TD
+    lava([Lava]) --> LF[Lava foundry]
+    LF -->|molten iron, ~99.7%| PTGF[Pipe-to-ground foundry]
+    LF -.->|molten iron, ~0.3%: the seed| PF[Pipe foundry]
+    PF -.->|pipes| PTGF
+    PTGF -->|pipe to ground| R[Recycler]
+    R -->|pipes| PTGF
+    R -->|plates below legendary| PA[Pipe assembler]
+    PA -->|pipes| PTGF
+    R ==>|legendary plates| OUT([Product])
 ```
 
 Only **legendary iron plates** leave the system. Everything else goes round again, and each trip through a machine
