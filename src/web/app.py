@@ -189,7 +189,8 @@ def _assembler_speed(req: AssemblerLoopRequest, tier: TierSetup, machine_quality
 def solve(req: AssemblerLoopRequest) -> dict:
     """Find the fewest machines for each stage that leave no bottlenecks, at the lowest machine quality that allows it.
 
-    The machine counts and qualities in the request's `tiers` and `recycler` are ignored."""
+    The machine counts and qualities in the request's `tiers` and `recycler` are ignored.
+    """
     qualities = range(NUM_TIERS)
     solution = solve_machine_quality(
         assembler_speeds_by_quality=[[_assembler_speed(req, t, q) for t in req.tiers] for q in qualities],

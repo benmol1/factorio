@@ -275,6 +275,20 @@ def assembler_recycler_loop(
     if type(input_vector) in (float, int):
         input_vector = np.array([input_vector] + [0] * (NUM_TIERS * 2 - 1))
 
+    # TODO: replace the iteration below with the closed-form steady state, as pipe_chain.solve_chain does.
+    #   The loop sums x0 + x0 T + x0 T^2 + ..., which equals x0 (I - T)^-1, so the summed flows are just
+    #       np.linalg.inv(np.eye(2 * NUM_TIERS) - transition_matrix)   (or np.linalg.solve, which is more stable)
+    #   applied to input_vector. Benefits: no 1e-2 truncation error (the loop is ~0.02 off the exact answer in the
+    #   blue circuit example), no iteration count, and no infinite loop if productivity makes the loop gain >= 1.
+    #   - Catch np.linalg.LinAlgError (gain of exactly 1) and treat negative flows as gain > 1: neither has a finite
+    #     steady state, so raise a clear error rather than returning garbage.
+    #   - Check against the current output first: run the __main__ example before and after and compare the flows
+    #     (they should agree to ~0.02), then check solver.py and the web app still give sensible machine counts.
+    #   - Decide what to do with the per-iteration pieces: result_flows / the DataFrame / "AR loop converged after N
+    #     iterations" only exist to show the iterations. Keep them behind `verbose` as an illustration, or drop them.
+    #   - total_crafting_time (and compute_crafting_time) is accumulated per iteration, so it has no closed form here.
+    #     grep for its callers; if nothing relies on it, remove it, since machine counts follow from the flows alone
+    #     (flow x craft time / speed), as in solver.py.
     # Initialise loop variable and output arrays
     ii = 0
     result_flows = [input_vector]
@@ -293,7 +307,8 @@ def assembler_recycler_loop(
 
         if sum(abs(result_flows[-2] - result_flows[-1])) < 1e-2:
             # There's nothing left in the system
-            if verbose: print(f"AR loop converged after {ii} iterations")
+            if verbose:
+                print(f"AR loop converged after {ii} iterations")
             break
 
     # Create the output dataframe
@@ -330,7 +345,7 @@ if __name__ == "__main__":
         product_quality_to_keep=NUM_TIERS,
         ingredient_quality_to_keep=None,
         base_prod_bonus=base_prod,
-        recipe_ratio=1/20,  # NB: ratio of products:ingredients in the recipe
+        recipe_ratio=1 / 20,  # NB: ratio of products:ingredients in the recipe
         prod_module_bonus=BEST_PROD_MODULE,
         qual_module_bonus=BEST_QUAL_MODULE,
         speed_assemblers=[0.5, 0.5, 0.5, 0.5, 0.5],  # EM plants with 5x productivity modules

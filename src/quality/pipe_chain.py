@@ -42,7 +42,7 @@ class ChainConfig:
     lava_foundry_prod_modules: int = 4
     pipe_foundry: tuple[int, int] = (0, 4)
     ptg_foundry: tuple[int, int] = (0, 4)
-    plate_assembler: tuple[int, int] = (0, 4)
+    pipe_assembler: tuple[int, int] = (0, 4)
     recycler_quality_modules: int = 4
     # Plates below this tier are surplus: they leave the chain rather than being assembled into pipes
     min_plate_tier: int = 1
@@ -88,8 +88,8 @@ def solve_chain(cfg: ChainConfig | None = None) -> dict:
     ptg_to_pipes = block(recycler_qual, ptg_recycling.outputs["pipe"], range(NUM_TIERS))
     ptg_to_plates = block(recycler_qual, ptg_recycling.outputs["iron-plate"], range(NUM_TIERS))
     plates_to_pipes = block(
-        cfg.plate_assembler[1] * BEST_QUAL_MODULE,
-        _prod_ratio("assembling-machine-3", cfg.plate_assembler[0], 0.0, assembling_pipe.ratio("iron-plate")),
+        cfg.pipe_assembler[1] * BEST_QUAL_MODULE,
+        _prod_ratio("assembling-machine-3", cfg.pipe_assembler[0], 0.0, assembling_pipe.ratio("iron-plate")),
         range(cfg.min_plate_tier, LEGENDARY),  # Legendary plates are the product, so they aren't assembled
     )
 
@@ -137,9 +137,9 @@ def solve_chain(cfg: ChainConfig | None = None) -> dict:
         / _machine_speed("foundry", cfg.pipe_foundry),
         "pipe-to-ground foundries": pipes_in.sum() / pipes_per_craft * casting_ptg.time / ptg_speed,
         "recyclers": ptg_in.sum() * ptg_recycling.time_per_item / recycler_speed(0, cfg.recycler_quality_modules),
-        "plate assemblers": assembled
+        "pipe assemblers": assembled
         * assembling_pipe.time
-        / _machine_speed("assembling-machine-3", cfg.plate_assembler),
+        / _machine_speed("assembling-machine-3", cfg.pipe_assembler),
     }
     return {
         "pipes": pipes_in,
@@ -158,7 +158,7 @@ def report(cfg: ChainConfig) -> None:
     res = solve_chain(cfg)
     print(
         f"lava {cfg.lava_per_second:g}/s | pipe foundry (P,Q)={cfg.pipe_foundry} ptg foundry={cfg.ptg_foundry} "
-        f"plate assembler={cfg.plate_assembler} min plate tier={cfg.min_plate_tier}"
+        f"pipe assembler={cfg.pipe_assembler} min plate tier={cfg.min_plate_tier}"
     )
     print("  pipes into ptg foundries /s  ", np.round(res["pipes"], 3))
     print("  pipe to ground recycled /s   ", np.round(res["pipe_to_ground"], 3))
@@ -192,13 +192,13 @@ def optimise(crafting_machines: float, recyclers: float) -> Optimum:
     best: Optimum | None = None
     for pipe_foundry in MODULE_SPLITS:
         for ptg_foundry in MODULE_SPLITS:
-            for plate_assembler in MODULE_SPLITS:
+            for pipe_assembler in MODULE_SPLITS:
                 for lava_prod, recycler_qual, min_tier in product(range(5), range(5), range(LEGENDARY)):
                     cfg = ChainConfig(
                         lava_foundry_prod_modules=lava_prod,
                         pipe_foundry=pipe_foundry,
                         ptg_foundry=ptg_foundry,
-                        plate_assembler=plate_assembler,
+                        pipe_assembler=pipe_assembler,
                         recycler_quality_modules=recycler_qual,
                         min_plate_tier=min_tier,
                     )
@@ -230,7 +230,7 @@ def report_optimum(crafting_machines: float, recyclers: float) -> None:
     )
     print(
         f"  (P,Q): lava foundry P={c.lava_foundry_prod_modules} pipe foundry={c.pipe_foundry} "
-        f"ptg foundry={c.ptg_foundry} plate assembler={c.plate_assembler} recycler Q={c.recycler_quality_modules} "
+        f"ptg foundry={c.ptg_foundry} pipe assembler={c.pipe_assembler} recycler Q={c.recycler_quality_modules} "
         f"min plate tier={c.min_plate_tier}"
     )
     print("  machines used:", {k: round(v, 2) for k, v in opt.loads.items()})

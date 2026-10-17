@@ -16,7 +16,7 @@ lava --[lava foundry]--> molten iron --[pipe foundry]--> pipes
  pipes + molten iron --[pipe-to-ground foundry]--> pipe to ground --[recycler]--> pipes + iron plates
               ^                                                                       |     |
               |                                                                       |     +--> LEGENDARY plates: leave (the product)
-              +------------------- [plate assembler] <-- plates below legendary <-----+
+              +------------------- [pipe assembler] <-- plates below legendary <-----+
               +---------------------------------------------- pipes -----------------+
 ```
 
@@ -74,7 +74,7 @@ the assembler multiplier is 1 + 0 + 1.0 = 2.0.
 So at the legendary tier the loop always shrinks (each trip brings back only 0.625 of the pipes). That's what keeps
 the numbers finite.
 
-At lower tiers the plates are not products. They go into the plate assembler:
+At lower tiers the plates are not products. They go into the pipe assembler:
 
 1. 0.3125 plates x 2.0 (assembler productivity) = **0.625 more pipes**, which go back to step 1.
 
@@ -129,7 +129,7 @@ Using the 10-machine optimum:
 |---|---|---|
 | Lava foundry (no modules, speed 4) | 221 lava/s / 500 = 0.442 crafts/s x 16 s / 4 | 1.77 |
 | Pipe-to-ground foundry (4 prod, speed 4 x 0.4 = 1.6) | 33.0 pipes/s / 10 = 3.30 crafts/s x 1 s / 1.6 | 2.06 |
-| Plate assembler (4 prod, speed 1.25 x 0.4 = 0.5) | 6.15 plates/s x 0.5 s / 0.5 | 6.15 |
+| Pipe assembler (4 prod, speed 1.25 x 0.4 = 0.5) | 6.15 plates/s x 0.5 s / 0.5 | 6.15 |
 | Pipe foundry (4 quality, speed 4 x 0.8 = 3.2) | tiny seed flow | 0.02 |
 | Recycler (4 quality, speed 0.5 x 0.8 = 0.4) | 16.5 pipe to ground/s x 0.0156 s / 0.4 | 0.65 |
 
@@ -152,14 +152,14 @@ So for any module setup I don't have to search over lava rates.
    **4.14/s**.
 
 Machine counts are left fractional (1.77 lava foundries), so a real build would need to round up and would be slightly
-worse. Lava foundries, pipe foundries, pipe-to-ground foundries and plate assemblers are counted in one shared pool
+worse. Lava foundries, pipe foundries, pipe-to-ground foundries and pipe assemblers are counted in one shared pool
 even though they are different machines.
 
 ## 8. The search
 
 `optimise()` tries every combination of:
 
-- Modules for the **pipe foundry**, **pipe-to-ground foundry** and **plate assembler**: any (productivity, quality)
+- Modules for the **pipe foundry**, **pipe-to-ground foundry** and **pipe assembler**: any (productivity, quality)
   pair with at most 4 modules in total: 15 options each.
 - **Lava foundry** productivity modules: 0 to 4.
 - **Recycler** quality modules: 0 to 4.
@@ -176,7 +176,7 @@ inverted, or any flow comes out negative).
 | Lava foundry | none |
 | Pipe foundry | 4 quality |
 | Pipe-to-ground foundry | 4 productivity |
-| Plate assembler | 4 productivity |
+| Pipe assembler | 4 productivity |
 | Recycler | 4 quality |
 | Minimum plate tier | 1 |
 
@@ -189,7 +189,7 @@ inverted, or any flow comes out negative).
 - **The pipe foundry barely matters.** It's only the seed, so its modules don't change the answer much.
 - Because crafting machines run out long before recyclers do, the recycler count rarely matters. The winning setup needs
   about 0.065 recyclers for each crafting machine.
-- The plate assemblers are the biggest consumer (6 of the 10 machines), so they are the main cost of this design.
+- The pipe assemblers are the biggest consumer (6 of the 10 machines), so they are the main cost of this design.
 
 ### Results
 
