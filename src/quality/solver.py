@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from src.quality.assembler_recycler_loop import assembler_recycler_loop
+from src.quality.pure_recycler_loop import recycler_loop
 from src.quality.utils import BEST_PROD_MODULE, BEST_QUAL_MODULE, NUM_TIERS
 
 # Flows are floats, so a machine that is loaded to exactly 100% shouldn't round up to another machine
@@ -117,6 +118,29 @@ def solve_machine_counts(
 def _machines_needed(flow: float, single_machine_capacity: float) -> int:
     """Whole machines needed to carry a flow, given what one machine can handle."""
     return max(0, math.ceil(flow / single_machine_capacity - TOLERANCE))
+
+
+def solve_recycler_count(speed_recycler: float, **loop) -> int:
+    """Fewest recyclers that carry a pure recycler loop, at least 1.
+
+    Args:
+        speed_recycler: Speed of one recycler.
+        **loop: The arguments of `recycler_loop`, other than the speed and recycler count.
+    """
+    # With one recycler, the total crafting time is the fraction of a recycler the loop needs
+    _, _, load = recycler_loop(**loop, speed_recycler=speed_recycler, num_recyclers=1)
+    return max(1, math.ceil(load - TOLERANCE))
+
+
+def solve_recycler_quality(speed_by_quality: list[float], **loop) -> tuple[int, int]:
+    """Fewest recyclers for a pure recycler loop, then the lowest recycler quality that still needs no more.
+
+    Returns:
+        (recycler quality, recycler count).
+    """
+    counts = [solve_recycler_count(speed, **loop) for speed in speed_by_quality]
+    quality = counts.index(counts[-1])
+    return quality, counts[quality]
 
 
 def solve_machine_quality(

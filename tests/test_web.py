@@ -151,3 +151,29 @@ def test_recipes_grouped():
     data = client.get("/api/game-data").json()
     assert data["groups"] == ["Production", "Logistics", "Intermediate", "Combat", "Fluids"]
     assert all(r["group"] in data["groups"] for r in data["recipes"].values())
+
+
+def test_pipe_chain_matches_solver_and_rejects_bad_modules():
+    """The endpoint agrees with solve_chain and enforces the 4 module slots."""
+    from src.quality.pipe_chain import solve_chain
+
+    res = client.post("/api/pipe-chain", json={}).json()
+    assert res["legendary_plates"] == pytest.approx(solve_chain()["legendary_plates"])
+    assert client.post("/api/pipe-chain", json={"pipe_foundry": {"prod": 3, "quality": 3}}).status_code == 422
+
+
+def test_recycler_solve_leaves_no_bottleneck_and_is_minimal():
+    """The solved recycler setup is within capacity, and one fewer recycler wouldn't be."""
+    body = {
+        "input_rates": [45, 15, 0, 0, 0],
+        "recycler": {"quality": 0, "count": 1, "quality_module": LEGENDARY_Q3},
+        "recipe_time": 1,
+    }
+    solved = client.post("/api/recycler-solve", json=body).json()["recycler"]
+
+    def load(count, quality):
+        req = {**body, "recycler": {**body["recycler"], "count": count, "quality": quality}}
+        return client.post("/api/recycler-loop", json=req).json()["recycler_load"]
+
+    assert load(solved["count"], solved["quality"]) <= 1 + 1e-9
+    assert solved["count"] == 1 or load(solved["count"] - 1, solved["quality"]) > 1

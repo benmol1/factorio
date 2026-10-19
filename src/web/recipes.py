@@ -39,6 +39,7 @@ ITEMS = {
     "advanced-circuit": Item("Advanced circuit", "advanced_circuit"),
     "ammonia": Item("Ammonia", "ammonia", fluid=True),
     "battery": Item("Battery", "battery"),
+    "biter-egg": Item("Biter egg", "biter_egg"),
     "carbon": Item("Carbon", "carbon"),
     "carbon-fiber": Item("Carbon fiber", "carbon_fiber"),
     "coal": Item("Coal", "coal"),
@@ -320,6 +321,10 @@ RECIPES = {
 }
 
 
+# Items worth upcycling in a pure recycler loop (one that just recycles the item back into itself), with the
+# crafting time the recycler's time is derived from. Neither has a recipe the recycler reverses.
+LOOP_ITEMS = {"tungsten-ore": 1.0, "biter-egg": 10.0}
+
 RECYCLE_YIELD = 0.25
 RECYCLE_TIME_FACTOR = 1 / 16
 
@@ -380,6 +385,7 @@ def recipe_data() -> dict:
     return {
         "items": {key: {"name": i.name, "icon": i.icon} for key, i in ITEMS.items()},
         "groups": list(GROUPS),
+        "loop_items": LOOP_ITEMS,
         "recipes": {
             key: {
                 "name": r.name,

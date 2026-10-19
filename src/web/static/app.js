@@ -156,9 +156,14 @@ function initForms() {
 
   // Tabs
   $$(".tab").forEach((tab) => tab.addEventListener("click", () => showTab(tab.dataset.tab)));
-  if (location.hash === "#recycler") showTab("recycler");
+  if (["#recycler", "#pipechain"].includes(location.hash)) showTab(location.hash.slice(1));
 
-  $("#form-recycler").addEventListener("submit", (e) => { e.preventDefault(); calculateRecycler(); });
+  $("#form-pipechain").addEventListener("submit", (e) => { e.preventDefault(); calculatePipeChain(); });
+  const recyclerForm = $("#form-recycler");
+  for (const key of Object.keys(GAME.loop_items)) recyclerForm.item.append(el("option", { value: key }, GAME.items[key].name));
+  recyclerForm.item.addEventListener("change", updateRecyclerItem);
+  recyclerForm.addEventListener("submit", (e) => { e.preventDefault(); calculateRecycler(); });
+  $("#solve-recycler").addEventListener("click", solveRecycler);
   $("#form-assembler").addEventListener("submit", (e) => { e.preventDefault(); calculateAssembler(); });
   $("#solve").addEventListener("click", solveAssembler);
   $$("[data-preset]").forEach((b) =>
@@ -257,6 +262,15 @@ function checkSlots() {
   return bad.length === 0;
 }
 
+// Choosing an item fixes the crafting time the recycler's time is derived from
+function updateRecyclerItem() {
+  const f = $("#form-recycler");
+  const item = f.item.value;
+  $(".recipe-icon", f).src = item ? ICON(GAME.items[item].icon) : ICON("recycler");
+  f.recipe_time.readOnly = !!item;
+  if (item) f.recipe_time.value = GAME.loop_items[item];
+}
+
 // ---------- Remembering inputs across refreshes ----------
 
 const STORAGE_PREFIX = "quality-loop:";
@@ -327,11 +341,23 @@ function restoreForm(form, hooks) {
 const PRESETS = {
   tungsten() {
     const f = $("#form-recycler");
+    f.item.value = "tungsten-ore";
+    updateRecyclerItem();
     setTierInputs($("[data-tier-inputs]", f), [45, 15, 0, 0, 0]);
     f.rec_count.value = 5;
     setQuality($(".quality-picker[data-name=rec_quality]", f), 4);
     setModule($(".module-picker[data-name=rec_qmod]", f), 3, 4);
-    f.recipe_time.value = 1;
+    f.recycle_time.value = "";
+    setQuality($(".quality-picker[data-name=keep]", f), 4);
+  },
+  biter() {
+    const f = $("#form-recycler");
+    f.item.value = "biter-egg";
+    updateRecyclerItem();
+    setTierInputs($("[data-tier-inputs]", f), [32, 0, 0, 0, 0]);
+    f.rec_count.value = 28;
+    setQuality($(".quality-picker[data-name=rec_quality]", f), 4);
+    setModule($(".module-picker[data-name=rec_qmod]", f), 3, 4);
     f.recycle_time.value = "";
     setQuality($(".quality-picker[data-name=keep]", f), 4);
   },
@@ -393,17 +419,41 @@ function recyclerSetup(form) {
 
 // ---------- Recycler loop ----------
 
+const recyclerRequest = (f) => ({
+  input_rates: getTierInputs($("[data-tier-inputs]", f)),
+  recycler: recyclerSetup(f),
+  recipe_time: Number(f.recipe_time.value),
+  recycle_time: optionalNumber(f.recycle_time),
+  quality_to_keep: getQuality($(".quality-picker[data-name=keep]", f)),
+});
+
 async function calculateRecycler() {
-  const f = $("#form-recycler");
   const out = $("#results-recycler");
-  const data = await post("/api/recycler-loop", {
-    input_rates: getTierInputs($("[data-tier-inputs]", f)),
-    recycler: recyclerSetup(f),
-    recipe_time: Number(f.recipe_time.value),
-    recycle_time: optionalNumber(f.recycle_time),
-    quality_to_keep: getQuality($(".quality-picker[data-name=keep]", f)),
-  }, out);
+  const data = await post("/api/recycler-loop", recyclerRequest($("#form-recycler")), out);
   if (data) renderRecycler(data, out);
+}
+
+// Fills in the recycler count and quality the solver picks, then shows the result
+async function solveRecycler() {
+  const f = $("#form-recycler");
+  const status = $("#solve-recycler-status");
+  status.classList.remove("error");
+  status.textContent = "Solving…";
+  let data;
+  try {
+    const res = await fetch("/api/recycler-solve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(recyclerRequest(f)) });
+    data = await res.json();
+    if (!res.ok) throw new Error(formatError(data));
+  } catch (err) {
+    status.classList.add("error");
+    status.textContent = err.message;
+    return;
+  }
+  f.rec_count.value = data.recycler.count;
+  setQuality($(".quality-picker[data-name=rec_quality]", f), data.recycler.quality);
+  saveState(f);
+  status.textContent = "Solved: the fewest recyclers, at the lowest quality that still needs no more.";
+  calculateRecycler();
 }
 
 function renderRecycler(d, out) {
@@ -597,6 +647,63 @@ function renderAssembler(d, out, machine, recipe, ingredient, inputFlow) {
     </table>`;
 }
 
+// ---------- Lava → iron plate chain ----------
+
+async function calculatePipeChain() {
+  const f = $("#form-pipechain");
+  const out = $("#results-pipechain");
+  const n = (name) => Number(f[name].value);
+  const data = await post("/api/pipe-chain", {
+    lava_per_second: n("lava_per_second"),
+    lava_foundry_prod_modules: n("lava_prod"),
+    pipe_foundry: { prod: n("pipe_prod"), quality: n("pipe_qual") },
+    ptg_foundry: { prod: n("ptg_prod"), quality: n("ptg_qual") },
+    pipe_assembler: { prod: n("asm_prod"), quality: n("asm_qual") },
+    recycler_quality_modules: n("rec_qual"),
+    min_plate_tier: getQuality($(".quality-picker[data-name=min_plate_tier]", f)),
+    research_prod_bonus: n("research_prod") / 100,
+  }, out);
+  if (data) renderPipeChain(data, out);
+}
+
+function renderPipeChain(d, out) {
+  const flowRows = [["pipe", "Pipes into pipe to ground foundries", d.pipes],
+    ["pipe_to_ground", "Pipe to ground into recyclers", d.pipe_to_ground],
+    ["iron_plate", "Iron plates out of recyclers", d.plates]];
+  const machines = [["Lava foundries", "lava foundries", "foundry"], ["Pipe foundries", "pipe foundries", "foundry"],
+    ["Pipe to ground foundries", "pipe-to-ground foundries", "foundry"], ["Recyclers", "recyclers", "recycler"],
+    ["Pipe assemblers", "pipe assemblers", "assembling_machine_3"]];
+  out.innerHTML = `
+    <h2>Results</h2>
+    <div class="stat-cards">
+      ${outputCard(ICON("iron_plate"), "Legendary Iron plate", d.legendary_plates)}
+      <div class="stat-card"><div class="label"><img class="card-icon" src="${ICON("iron_plate")}" alt="">Surplus lower-tier plates</div>
+        <div class="value">${fmtFlow(d.surplus_plates * 60)} <small>/ min</small></div></div>
+      <div class="stat-card"><div class="label">Stone byproduct</div>
+        <div class="value">${fmtFlow(d.stone)} <small>/ s</small></div></div>
+    </div>
+    ${flowRows.map(([icon, title, flows]) => `
+      <div class="section-title"><img src="${ICON(icon)}" alt="">${title}</div>
+      <table class="results-table">
+        <thead><tr><th>Quality</th><th>Flow / s</th><th>Flow / min</th></tr></thead>
+        <tbody>${flows.map((x, i) => `
+          <tr class="q${i}"><td>${tierName(i)}</td><td class="num">${fmtFlow(x)}</td><td class="num">${fmtFlow(x * 60)}</td></tr>`).join("")}
+        </tbody>
+      </table>`).join("")}
+    <div class="section-title"><img src="${ICON("foundry")}" alt="">Machines needed</div>
+    <table class="results-table">
+      <thead><tr><th>Machine</th><th>Exact</th><th>Round up</th></tr></thead>
+      <tbody>${machines.map(([label, key, icon]) => `
+        <tr><td><img class="card-icon" src="${ICON(icon)}" alt=""> ${label}</td>
+          <td class="num">${fmt(d.loads[key])}</td><td class="num">${Math.ceil(d.loads[key] - 1e-9)}</td></tr>`).join("")}
+      </tbody>
+    </table>
+    <p class="machine-stats">
+      ${pct(d.molten_split[0])} of the molten iron is cast into pipes; ${pct(d.molten_split[1])} goes into pipe to ground.
+      Machines are normal quality; faster ones need proportionally fewer.
+    </p>`;
+}
+
 // ---------- Shared render bits ----------
 
 function statusTag(kept, loopLabel = "Recycled") {
@@ -651,7 +758,7 @@ fetch("/api/game-data")
     initForms();
     const recyclerForm = $("#form-recycler");
     const assemblerForm = $("#form-assembler");
-    if (!restoreForm(recyclerForm)) PRESETS.tungsten();
+    if (!restoreForm(recyclerForm, { after: updateRecyclerItem })) PRESETS.tungsten();
     const restored = restoreForm(assemblerForm, {
       recipe: updateRecipe,
       after() {
@@ -663,6 +770,10 @@ fetch("/api/game-data")
     // Event-driven saves can miss the last programmatic edits, so save the final state explicitly
     saveState(recyclerForm);
     saveState(assemblerForm);
+    const chainForm = $("#form-pipechain");
+    if (!restoreForm(chainForm)) setQuality($(".quality-picker[data-name=min_plate_tier]", chainForm), 1);
+    saveState(chainForm);
+    calculatePipeChain();
     calculateRecycler();
     calculateAssembler();
   });

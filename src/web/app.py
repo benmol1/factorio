@@ -7,14 +7,15 @@ from pathlib import Path
 from typing import Annotated
 
 import numpy as np
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, model_validator
 
 from src.quality.assembler_recycler_loop import assembler_recycler_loop
+from src.quality.pipe_chain import ChainConfig, solve_chain
 from src.quality.pure_recycler_loop import get_production_rate, recycler_loop
-from src.quality.solver import solve_machine_quality
+from src.quality.solver import solve_machine_quality, solve_recycler_quality
 from src.quality.utils import NUM_TIERS
 from src.web.game_data import (
     MACHINES,
@@ -105,6 +106,37 @@ class AssemblerLoopRequest(BaseModel):
         return self
 
 
+class Modules(BaseModel):
+    """Productivity and quality module counts in one machine."""
+
+    prod: Annotated[int, Field(ge=0, le=4)] = 0
+    quality: Annotated[int, Field(ge=0, le=4)] = 0
+
+    @model_validator(mode="after")
+    def check_slots(self):
+        """All the machines in the chain have 4 module slots."""
+        if self.prod + self.quality > 4:
+            raise ValueError("More modules than the machine's 4 slots")
+        return self
+
+    def pair(self) -> tuple[int, int]:
+        """As the (prod, quality) tuple the chain solver takes."""
+        return self.prod, self.quality
+
+
+class PipeChainRequest(BaseModel):
+    """Inputs for the lava → pipe → pipe to ground → iron plate chain."""
+
+    lava_per_second: Annotated[float, Field(gt=0)] = 100.0
+    lava_foundry_prod_modules: Annotated[int, Field(ge=0, le=4)] = 4
+    pipe_foundry: Modules = Modules(quality=4)
+    ptg_foundry: Modules = Modules(quality=4)
+    pipe_assembler: Modules = Modules(quality=4)
+    recycler_quality_modules: Annotated[int, Field(ge=0, le=4)] = 4
+    min_plate_tier: Tier = 1
+    research_prod_bonus: Annotated[float, Field(ge=0)] = 0.0
+
+
 app = FastAPI(title="Factorio Quality Loop Simulator")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
@@ -127,6 +159,28 @@ def _recycler_stats(recycler: RecyclerSetup) -> tuple[float, float]:
     return RECYCLER_SLOTS * qual_bonus, recycler_speed(recycler.quality)
 
 
+def _recycler_loop_kwargs(req: RecyclerLoopRequest) -> dict:
+    """The pure loop arguments that don't depend on the recyclers' speed or count."""
+    quality_chance, _ = _recycler_stats(req.recycler)
+    return {
+        "input_vector": np.array(req.input_rates, dtype=float),
+        "quality_chance": quality_chance,
+        "quality_to_keep": req.quality_to_keep + 1,
+        "recipe_time": req.recipe_time,
+        "recycle_time": req.recycle_time,
+    }
+
+
+@app.post("/api/recycler-solve")
+def solve_recycler(req: RecyclerLoopRequest) -> dict:
+    """Find the fewest recyclers for a pure recycler loop, at the lowest quality that allows it.
+
+    The recycler quality and count in the request are ignored.
+    """
+    quality, count = solve_recycler_quality([recycler_speed(q) for q in range(NUM_TIERS)], **_recycler_loop_kwargs(req))
+    return {"recycler": {"quality": quality, "count": count}}
+
+
 @app.post("/api/recycler-loop")
 def run_recycler_loop(req: RecyclerLoopRequest) -> dict:
     """Simulate a pure recycler loop."""
@@ -134,13 +188,7 @@ def run_recycler_loop(req: RecyclerLoopRequest) -> dict:
     input_vector = np.array(req.input_rates, dtype=float)
 
     flows, transition_matrix, total_crafting_time = recycler_loop(
-        input_vector=input_vector,
-        quality_chance=quality_chance,
-        quality_to_keep=req.quality_to_keep + 1,
-        speed_recycler=speed,
-        num_recyclers=req.recycler.count,
-        recipe_time=req.recipe_time,
-        recycle_time=req.recycle_time,
+        **_recycler_loop_kwargs(req), speed_recycler=speed, num_recyclers=req.recycler.count
     )
     production_rate = get_production_rate(input_vector, flows, transition_matrix)
 
@@ -203,6 +251,34 @@ def solve(req: AssemblerLoopRequest) -> dict:
             for q, n in zip(solution.assembler_qualities, solution.num_assemblers, strict=True)
         ],
         "recycler": {"quality": solution.recycler_quality, "count": solution.num_recyclers},
+    }
+
+
+@app.post("/api/pipe-chain")
+def run_pipe_chain(req: PipeChainRequest) -> dict:
+    """Solve the steady state of the lava → pipe → pipe to ground → iron plate chain."""
+    cfg = ChainConfig(
+        lava_per_second=req.lava_per_second,
+        lava_foundry_prod_modules=req.lava_foundry_prod_modules,
+        pipe_foundry=req.pipe_foundry.pair(),
+        ptg_foundry=req.ptg_foundry.pair(),
+        pipe_assembler=req.pipe_assembler.pair(),
+        recycler_quality_modules=req.recycler_quality_modules,
+        min_plate_tier=req.min_plate_tier,
+        research_prod_bonus=req.research_prod_bonus,
+    )
+    try:
+        res = solve_chain(cfg)
+    except np.linalg.LinAlgError:
+        res = None
+    # Loop gain of 1 or more: the flows grow without bound, so there is no steady state
+    if res is None or min(res["pipes"].min(), res["plates"].min()) < 0:
+        raise HTTPException(422, "This setup has no steady state: the loop gain is 1 or more.")
+    return {
+        **{k: res[k].tolist() for k in ("pipes", "pipe_to_ground", "plates")},
+        **{k: float(res[k]) for k in ("legendary_plates", "surplus_plates", "stone")},
+        "loads": res["loads"],
+        "molten_split": res["molten_split"],
     }
 
 
