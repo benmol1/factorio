@@ -41,6 +41,7 @@ ITEMS = {
     "electronic-circuit": Item("Electronic circuit", "electronic_circuit"),
     "fast-underground-belt": Item("Fast underground belt", "fast_underground_belt"),
     "fluorine": Item("Fluorine", "fluorine"),
+    "foundry": Item("Foundry", "foundry"),
     "fluoroketone-cold": Item("Fluoroketone (cold)", "fluoroketone_cold"),
     "fluoroketone-hot": Item("Fluoroketone (hot)", "fluoroketone_hot"),
     "holmium-plate": Item("Holmium plate", "holmium_plate"),
@@ -51,6 +52,7 @@ ITEMS = {
     "lithium-brine": Item("Lithium brine", "lithium_brine"),
     "lithium-plate": Item("Lithium plate", "lithium_plate"),
     "low-density-structure": Item("Low density structure", "low_density_structure"),
+    "lubricant": Item("Lubricant", "lubricant"),
     "molten-copper": Item("Molten copper", "molten_copper"),
     "molten-iron": Item("Molten iron", "molten_iron"),
     "pipe": Item("Pipe", "pipe"),
@@ -171,7 +173,21 @@ RECIPES = {
         time=10,
         ingredients={"holmium-plate": 150, "processing-unit": 50, "refined-concrete": 50, "steel-plate": 50},
         products={"electromagnetic-plant": 1},
-        machines=(*ASSEMBLERS, "electromagnetic-plant"),
+        machines=(*ASSEMBLERS, "electromagnetic-plant", "foundry"),
+        group="Production",
+    ),
+    "foundry": Recipe(
+        "Foundry",
+        time=10,
+        ingredients={
+            "electronic-circuit": 30,
+            "lubricant": 20,
+            "refined-concrete": 20,
+            "steel-plate": 50,
+            "tungsten-carbide": 50,
+        },
+        products={"foundry": 1},
+        machines=(*ASSEMBLERS, "foundry"),
         group="Production",
     ),
     "fast-underground-belt": Recipe(
@@ -187,7 +203,7 @@ RECIPES = {
         time=15,
         ingredients={"copper-plate": 20, "steel-plate": 2, "plastic-bar": 5},
         products={"low-density-structure": 1},
-        machines=ASSEMBLERS,
+        machines=(*ASSEMBLERS, "foundry"),
         group="Intermediate",
     ),
     "pipe": Recipe(
@@ -195,7 +211,7 @@ RECIPES = {
         time=0.5,
         ingredients={"iron-plate": 1},
         products={"pipe": 1},
-        machines=ASSEMBLERS,
+        machines=(*ASSEMBLERS, "foundry"),
         group="Logistics",
     ),
     "pipe-to-ground": Recipe(
@@ -203,7 +219,7 @@ RECIPES = {
         time=0.5,
         ingredients={"iron-plate": 5, "pipe": 10},
         products={"pipe-to-ground": 2},
-        machines=ASSEMBLERS,
+        machines=(*ASSEMBLERS, "foundry"),
         group="Logistics",
     ),
     "battery": Recipe(
@@ -275,7 +291,7 @@ RECIPES = {
         time=1,
         ingredients={"carbon": 1, "sulfuric-acid": 10, "tungsten-ore": 2},
         products={"tungsten-carbide": 1},
-        machines=ASSEMBLERS,
+        machines=(*ASSEMBLERS, "foundry"),
         group="Intermediate",
     ),
     "carbon-fiber": Recipe(
@@ -291,7 +307,7 @@ RECIPES = {
         time=10,
         ingredients={"advanced-circuit": 3, "carbon-fiber": 10},
         products={"toolbelt-equipment": 1},
-        machines=ASSEMBLERS,
+        machines=(*ASSEMBLERS, "foundry"),
         group="Combat",
     ),
 }
