@@ -24,6 +24,9 @@
       <button class="tab" data-tab="recycler" role="tab">
         <img src="/static/icons/recycler.png" alt=""> Recycler loop
       </button>
+      <button class="tab" data-tab="pipechain" role="tab">
+        <img src="/static/icons/pipe_to_ground.png" alt=""> Lava → iron plate chain
+      </button>
     </nav>
 
     <!-- Assembler → recycler loop -->
@@ -120,6 +123,9 @@
           <button type="button" class="btn small" data-preset="tungsten">
             <img src="/static/icons/tungsten_ore.png" alt=""> Tungsten ore
           </button>
+          <button type="button" class="btn small" data-preset="biter">
+            <img src="/static/icons/biter_egg.png" alt=""> Biter eggs
+          </button>
         </div>
 
         <fieldset class="inset">
@@ -138,15 +144,64 @@
 
         <fieldset class="inset">
           <legend>Recipe</legend>
+          <label>Item
+            <span class="with-icon"><img class="recipe-icon" alt=""><select name="item"><option value="">Custom</option></select></span>
+          </label>
           <label>Crafting time (s) <input type="number" name="recipe_time" min="0.01" step="any" value="1"></label>
           <label>Recycle time (s) <input type="number" name="recycle_time" min="0.001" step="any" placeholder="crafting time ÷ 16"></label>
           <label>Keep at or above <span class="quality-picker" data-name="keep"></span></label>
+        </fieldset>
+
+        <fieldset class="inset">
+          <legend>Solver</legend>
+          <p class="hint">Fills in the fewest recyclers that don't bottleneck the loop, then the lowest recycler quality that needs no more of them.</p>
+          <button type="button" class="btn" id="solve-recycler">Solve</button>
+          <p class="hint" id="solve-recycler-status"></p>
         </fieldset>
 
         <button type="submit" class="btn confirm">Calculate</button>
       </form>
 
       <div class="panel results" id="results-recycler">
+        <h2>Results</h2>
+        <p class="placeholder">Set your inputs and press <b>Calculate</b>.</p>
+      </div>
+    </section>
+
+    <!-- Lava → pipe → pipe to ground → iron plate chain -->
+    <section class="tab-panel" id="tab-pipechain">
+      <form class="panel inputs" id="form-pipechain">
+        <h2>Inputs</h2>
+        <p class="hint">Lava is cast into molten iron, then pipes, then pipe to ground. Pipe to ground is recycled into pipes and iron plates; plates are assembled back into pipes. Legendary plates leave the chain.</p>
+        <fieldset class="inset">
+          <legend><img src="/static/icons/molten_iron.png" alt=""> Supply</legend>
+          <label>Lava per second <input type="number" name="lava_per_second" min="0.001" step="any" value="100"></label>
+          <label>Research productivity (%) <input type="number" name="research_prod" min="0" step="any" value="0"></label>
+          <label>Re-assemble plates at or above
+            <span class="quality-picker" data-name="min_plate_tier"></span>
+          </label>
+          <p class="hint">Lower-tier plates are surplus and leave the chain.</p>
+        </fieldset>
+
+        <fieldset class="inset">
+          <legend><img src="/static/icons/foundry.png" alt=""> Modules per machine (4 slots)</legend>
+          <table class="tier-table">
+            <thead><tr><th>Machine</th><th>Prod</th><th>Quality</th></tr></thead>
+            <tbody>
+              <tr><td>Lava foundry</td><td><input type="number" name="lava_prod" min="0" max="4" value="4"></td><td>–</td></tr>
+              <tr><td>Pipe foundry</td><td><input type="number" name="pipe_prod" min="0" max="4" value="0"></td><td><input type="number" name="pipe_qual" min="0" max="4" value="4"></td></tr>
+              <tr><td>Pipe to ground foundry</td><td><input type="number" name="ptg_prod" min="0" max="4" value="0"></td><td><input type="number" name="ptg_qual" min="0" max="4" value="4"></td></tr>
+              <tr><td>Pipe assembler (AM3)</td><td><input type="number" name="asm_prod" min="0" max="4" value="0"></td><td><input type="number" name="asm_qual" min="0" max="4" value="4"></td></tr>
+              <tr><td>Recycler</td><td>–</td><td><input type="number" name="rec_qual" min="0" max="4" value="4"></td></tr>
+            </tbody>
+          </table>
+          <p class="hint">Level 3 modules of normal quality, in normal quality machines.</p>
+        </fieldset>
+
+        <button type="submit" class="btn confirm">Calculate</button>
+      </form>
+
+      <div class="panel results" id="results-pipechain">
         <h2>Results</h2>
         <p class="placeholder">Set your inputs and press <b>Calculate</b>.</p>
       </div>
