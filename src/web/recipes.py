@@ -5,15 +5,21 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Item:
-    """An item's display name and icon."""
+    """An item's display name and icon. Fluids have no quality and can't be recycled."""
 
     name: str
     icon: str
+    fluid: bool = False
 
 
 @dataclass(frozen=True)
 class Recipe:
-    """A recipe's inputs, outputs, the machines (keys of MACHINES) that can craft it, and its in-game tab."""
+    """A recipe's inputs, outputs, the machines (keys of MACHINES) that can craft it, and its in-game tab.
+
+    Every item has at most one *recyclable* recipe, and that one defines what recycling the item returns. Alternative
+    recipes (e.g. foundry casting) set `recyclable=False`: they can craft the item, but never define its recycling.
+    `recycle_time` is the base time of the recycling craft, for when it isn't the usual `time / 16`.
+    """
 
     name: str
     time: float
@@ -21,6 +27,8 @@ class Recipe:
     products: dict[str, float]
     machines: tuple[str, ...]
     group: str
+    recyclable: bool = True
+    recycle_time: float | None = None
 
     def ratio(self, ingredient: str) -> float:
         """Products per unit of one ingredient, as used by the assembler loop."""
@@ -29,32 +37,33 @@ class Recipe:
 
 ITEMS = {
     "advanced-circuit": Item("Advanced circuit", "advanced_circuit"),
-    "ammonia": Item("Ammonia", "ammonia"),
+    "ammonia": Item("Ammonia", "ammonia", fluid=True),
     "battery": Item("Battery", "battery"),
     "carbon": Item("Carbon", "carbon"),
     "carbon-fiber": Item("Carbon fiber", "carbon_fiber"),
     "coal": Item("Coal", "coal"),
     "copper-cable": Item("Copper cable", "copper_cable"),
     "copper-plate": Item("Copper plate", "copper_plate"),
-    "electrolyte": Item("Electrolyte", "electrolyte"),
+    "electrolyte": Item("Electrolyte", "electrolyte", fluid=True),
     "electromagnetic-plant": Item("Electromagnetic plant", "electromagnetic_plant"),
     "electronic-circuit": Item("Electronic circuit", "electronic_circuit"),
     "fast-underground-belt": Item("Fast underground belt", "fast_underground_belt"),
-    "fluorine": Item("Fluorine", "fluorine"),
+    "fluorine": Item("Fluorine", "fluorine", fluid=True),
+    "fluoroketone-cold": Item("Fluoroketone (cold)", "fluoroketone_cold", fluid=True),
+    "fluoroketone-hot": Item("Fluoroketone (hot)", "fluoroketone_hot", fluid=True),
     "foundry": Item("Foundry", "foundry"),
-    "fluoroketone-cold": Item("Fluoroketone (cold)", "fluoroketone_cold"),
-    "fluoroketone-hot": Item("Fluoroketone (hot)", "fluoroketone_hot"),
     "holmium-plate": Item("Holmium plate", "holmium_plate"),
     "iron-gear-wheel": Item("Iron gear wheel", "iron_gear_wheel"),
     "iron-plate": Item("Iron plate", "iron_plate"),
-    "light-oil": Item("Light oil", "light_oil"),
+    "light-oil": Item("Light oil", "light_oil", fluid=True),
+    "lava": Item("Lava", "lava", fluid=True),
     "lithium": Item("Lithium", "lithium"),
-    "lithium-brine": Item("Lithium brine", "lithium_brine"),
+    "lithium-brine": Item("Lithium brine", "lithium_brine", fluid=True),
     "lithium-plate": Item("Lithium plate", "lithium_plate"),
     "low-density-structure": Item("Low density structure", "low_density_structure"),
-    "lubricant": Item("Lubricant", "lubricant"),
-    "molten-copper": Item("Molten copper", "molten_copper"),
-    "molten-iron": Item("Molten iron", "molten_iron"),
+    "lubricant": Item("Lubricant", "lubricant", fluid=True),
+    "molten-copper": Item("Molten copper", "molten_copper", fluid=True),
+    "molten-iron": Item("Molten iron", "molten_iron", fluid=True),
     "pipe": Item("Pipe", "pipe"),
     "pipe-to-ground": Item("Pipe to ground", "pipe_to_ground"),
     "plastic-bar": Item("Plastic bar", "plastic_bar"),
@@ -63,15 +72,16 @@ ITEMS = {
     "refined-concrete": Item("Refined concrete", "refined_concrete"),
     "solid-fuel": Item("Solid fuel", "solid_fuel"),
     "steel-plate": Item("Steel plate", "steel_plate"),
+    "stone": Item("Stone", "stone"),
     "sulfur": Item("Sulfur", "sulfur"),
-    "sulfuric-acid": Item("Sulfuric acid", "sulfuric_acid"),
+    "sulfuric-acid": Item("Sulfuric acid", "sulfuric_acid", fluid=True),
     "supercapacitor": Item("Supercapacitor", "supercapacitor"),
     "superconductor": Item("Superconductor", "superconductor"),
     "toolbelt-equipment": Item("Toolbelt equipment", "toolbelt_equipment"),
     "tungsten-carbide": Item("Tungsten carbide", "tungsten_carbide"),
     "tungsten-ore": Item("Tungsten ore", "tungsten_ore"),
     "underground-belt": Item("Underground belt", "underground_belt"),
-    "water": Item("Water", "water"),
+    "water": Item("Water", "water", fluid=True),
     "yumako-mash": Item("Yumako mash", "yumako_mash"),
 }
 
@@ -96,6 +106,7 @@ RECIPES = {
         products={"copper-cable": 2},
         machines=("foundry",),
         group="Intermediate",
+        recyclable=False,
     ),
     "copper-cable": Recipe(
         "Copper cable",
@@ -143,6 +154,16 @@ RECIPES = {
         products={"low-density-structure": 1},
         machines=("foundry",),
         group="Intermediate",
+        recyclable=False,
+    ),
+    "molten-iron-from-lava": Recipe(
+        # Unverified against the game: 500 lava -> 250 molten iron + 10 stone, 16 s
+        "Molten iron from lava",
+        time=16,
+        ingredients={"lava": 500},
+        products={"molten-iron": 250, "stone": 10},
+        machines=("foundry",),
+        group="Fluids",
     ),
     "casting-pipe": Recipe(
         "Casting pipe",
@@ -151,6 +172,7 @@ RECIPES = {
         products={"pipe": 1},
         machines=("foundry",),
         group="Logistics",
+        recyclable=False,
     ),
     "casting-pipe-to-ground": Recipe(
         "Casting pipe to ground",
@@ -159,6 +181,7 @@ RECIPES = {
         products={"pipe-to-ground": 2},
         machines=("foundry",),
         group="Logistics",
+        recyclable=False,
     ),
     "coal-synthesis": Recipe(
         "Coal synthesis",
@@ -311,6 +334,61 @@ RECIPES = {
         group="Combat",
     ),
 }
+
+
+RECYCLE_YIELD = 0.25
+RECYCLE_TIME_FACTOR = 1 / 16
+
+
+@dataclass(frozen=True)
+class Recycling:
+    """What a recycler does with an item, derived from the item's one recyclable recipe."""
+
+    item: str
+    recipe: str
+    # Items consumed by one recycling craft, which is how many of the item the recipe makes
+    items_per_craft: float
+    # Base time of one recycling craft in seconds
+    time: float
+    # Items returned per ONE item recycled (expected value; fluids are never returned)
+    outputs: dict[str, float]
+
+    @property
+    def time_per_item(self) -> float:
+        """Base time to recycle a single item, the unit the quality loops work in."""
+        return self.time / self.items_per_craft
+
+
+def _build_recycling() -> dict[str, Recycling]:
+    """Derive the recycling of every item from its recyclable recipe, checking that there is only one."""
+    res: dict[str, Recycling] = {}
+    for key, recipe in RECIPES.items():
+        if not recipe.recyclable:
+            continue
+        for item, amount in recipe.products.items():
+            if ITEMS[item].fluid:
+                continue
+            assert item not in res, f"{item} has two recyclable recipes: {res[item].recipe} and {key}"
+            res[item] = Recycling(
+                item=item,
+                recipe=key,
+                items_per_craft=amount,
+                time=recipe.recycle_time if recipe.recycle_time is not None else recipe.time * RECYCLE_TIME_FACTOR,
+                outputs={
+                    ingredient: RECYCLE_YIELD * n / amount
+                    for ingredient, n in recipe.ingredients.items()
+                    if not ITEMS[ingredient].fluid
+                },
+            )
+    return res
+
+
+RECYCLING = _build_recycling()
+
+
+def recycling(item: str) -> Recycling:
+    """The recycling of an item, i.e. what one recycler craft consumes, returns and how long it takes."""
+    return RECYCLING[item]
 
 
 def recipe_data() -> dict:

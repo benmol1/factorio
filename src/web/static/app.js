@@ -511,6 +511,7 @@ function renderAssembler(d, out, machine, recipe, ingredient, inputFlow) {
   const keptIngFlow = ing.flows.reduce((s, x, i) => s + (ing.kept[i] ? x : 0), 0);
   const loads = ing.flows.map((x, i) => (ing.kept[i] ? 0 : x / ing.max_flow[i]));
   const recLoad = d.recycler.flow / d.recycler.max_flow;
+  const recycler = recyclerSetup($("#form-assembler"));
   const bottlenecks = loads.map((l, i) => (l > 1 ? TIERS[i] : null)).filter(Boolean);
   if (recLoad > 1) bottlenecks.push("Recyclers");
 
@@ -567,22 +568,33 @@ function renderAssembler(d, out, machine, recipe, ingredient, inputFlow) {
     
     <div class="section-title"><img src="${ICON(machine.icon)}" alt="">Machines</div>
     <table class="results-table">
-      <thead><tr><th>Assemblers crafting</th><th>Count</th><th>Speed</th><th>Quality chance</th><th>Productivity bonus</th></tr></thead>
+      <thead><tr><th>Assemblers crafting</th><th>Count</th><th>Machine quality</th><th>Speed</th><th>Quality chance</th><th>Productivity bonus</th></tr></thead>
       <tbody>
         ${TIERS.map((_, i) => `
           <tr class="q${i}">
             <td>${tierName(i)}</td>
             <td class="num">${$("#form-assembler")[`count_${i}`].value}</td>
+            <td>${tierName(getQuality($(`.quality-picker[data-name=machine_quality_${i}]`, $("#form-assembler"))) ?? 0)}</td>
             <td class="num">${fmt(d.derived.assembler_speeds[i], 3)}</td>
             <td class="num">${pct(d.derived.assembler_quality_chance[i])}</td>
             <td class="num">+${pct(d.derived.assembler_prod_bonus[i], 0)}</td>
           </tr>`).join("")}
       </tbody>
     </table>
-    <p class="machine-stats">
-      Recyclers: ${pct(d.derived.recycler_quality_chance)} quality chance, speed ${fmt(d.derived.recycler_speed, 2)},
-      handling ${fmtFlow(d.recycler.flow)} of ${fmtFlow(d.recycler.max_flow)} products / s.
-    </p>`;
+    <div class="section-title"><img src="${ICON("recycler")}" alt="">Recyclers</div>
+    <table class="results-table">
+      <thead><tr><th>Machine quality</th><th>Count</th><th>Speed</th><th>Quality chance</th><th>Flow / s</th><th>Capacity / s</th></tr></thead>
+      <tbody>
+        <tr class="q${recycler.quality}">
+          <td>${tierName(recycler.quality)}</td>
+          <td class="num">${recycler.count}</td>
+          <td class="num">${fmt(d.derived.recycler_speed, 3)}</td>
+          <td class="num">${pct(d.derived.recycler_quality_chance)}</td>
+          <td class="num">${fmtFlow(d.recycler.flow)}</td>
+          <td class="num">${fmtFlow(d.recycler.max_flow)}</td>
+        </tr>
+      </tbody>
+    </table>`;
 }
 
 // ---------- Shared render bits ----------

@@ -47,6 +47,7 @@ def solve_machine_counts(
     speed_recycler: float = 0.5,
     recycle_time: float | None = None,
     recycler_qual_module_bonus: float | None = None,
+    recycle_ratio: float | None = None,
 ) -> SolverResult:
     """Find the fewest assemblers (per ingredient tier) and recyclers that leave nothing bottlenecked.
 
@@ -72,6 +73,7 @@ def solve_machine_counts(
         recycle_time: Base time in seconds of the product's recycling recipe. Defaults to `recipe_time / 16`.
         recycler_qual_module_bonus: Quality chance bonus per quality module in the recyclers. Defaults to
             `qual_module_bonus`.
+        recycle_ratio: Loop ingredients returned per product recycled. Defaults to `0.25 / recipe_ratio`.
 
     Returns:
         A SolverResult. Tiers with no flow or whose quality is kept need zero assemblers.
@@ -80,7 +82,7 @@ def solve_machine_counts(
         speed_assemblers = [1] * NUM_TIERS
 
     # One machine per stage makes the "max flow" vector the capacity of a single machine
-    flows, _, _, single_machine_max_flow = assembler_recycler_loop(
+    flows, _, single_machine_max_flow = assembler_recycler_loop(
         input_vector=input_vector,
         assembler_modules_config=assembler_modules_config,
         product_quality_to_keep=product_quality_to_keep,
@@ -96,6 +98,7 @@ def solve_machine_counts(
         num_recyclers=1,
         recycle_time=recycle_time,
         recycler_qual_module_bonus=recycler_qual_module_bonus,
+        recycle_ratio=recycle_ratio,
     )
 
     # Kept ingredient tiers are taken out of the loop rather than assembled

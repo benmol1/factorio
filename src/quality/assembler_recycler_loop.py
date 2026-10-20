@@ -81,40 +81,6 @@ def create_max_flow_vector(crafting_time_vector: np.ndarray, recipe_ratio: float
     return mf_vector
 
 
-def compute_crafting_time(
-    input_flows: np.ndarray, prev_crafting_time: list, recipe_ratio: float, ct_vector: np.ndarray
-) -> list:
-    """Compute the crafting time for one iteration of the AR loop.
-
-    Args:
-        input_flows: Flow rates entering each tier this iteration.
-        prev_crafting_time: Previous iteration's crafting time result.
-        recipe_ratio: Ratio of products to ingredients in the recipe.
-        ct_vector: Crafting time vector from create_crafting_time_vector.
-
-    Returns:
-        List containing [total_crafting_time, bottleneck_tier_index].
-    """
-    ct = 0
-
-    # The assemblers are in parallel, so only the max crafting time is relevant
-    assembler_crafting_times = np.multiply(input_flows[:NUM_TIERS] * recipe_ratio, ct_vector[:NUM_TIERS])
-    max_assembler_crafting_time = np.max(assembler_crafting_times)
-    max_assembler_crafting_time_tier = np.argmax(assembler_crafting_times) + 1
-    ct += max_assembler_crafting_time
-
-    # The recyclers are in series, so the total crafting time is relevant
-    recycler_crafting_time = np.dot(input_flows[NUM_TIERS:], ct_vector[NUM_TIERS:])
-    ct += recycler_crafting_time
-
-    if max_assembler_crafting_time > recycler_crafting_time:
-        max_time_index = max_assembler_crafting_time_tier
-    else:
-        max_time_index = NUM_TIERS + 1
-
-    return [ct, max_time_index]
-
-
 def get_assembler_parameters(
     assembler_modules_config: tuple[float, float] | list[tuple[float, float]],
     quality_to_keep: int = NUM_TIERS,
@@ -157,6 +123,7 @@ def get_recycler_parameters(
     quality_to_keep: int = NUM_TIERS,
     recipe_ratio: float = 1,
     qual_module_bonus: float = BEST_QUAL_MODULE,
+    recycle_ratio: float | None = None,
 ) -> list[tuple[float, float]]:
     """Generate recycler parameters for the transition matrix.
 
@@ -164,6 +131,9 @@ def get_recycler_parameters(
         quality_to_keep: Minimum quality tier to keep (don't recycle). Defaults to legendary.
         recipe_ratio: Ratio of products to ingredients in the recipe.
         qual_module_bonus: Quality chance bonus per module (recyclers use 4 quality modules).
+        recycle_ratio: Loop ingredients returned per product recycled. Defaults to `0.25 / recipe_ratio`, i.e.
+            recycling is the assembly recipe in reverse. Differs when the recipe is an alternative that doesn't
+            define the recycling (e.g. foundry casting); 0 if recycling doesn't return the loop ingredient.
 
     Returns:
         List of (quality_chance, production_ratio) tuples per tier.
@@ -172,7 +142,7 @@ def get_recycler_parameters(
     saving_rows = NUM_TIERS - recycling_rows
 
     # Recycler stats
-    production_ratio = 0.25 / recipe_ratio
+    production_ratio = 0.25 / recipe_ratio if recycle_ratio is None else recycle_ratio
     quality_chance = 4 * qual_module_bonus
 
     return [(quality_chance, production_ratio)] * recycling_rows + [(0, 0)] * saving_rows
@@ -194,6 +164,7 @@ def assembler_recycler_loop(
     num_recyclers: int = 1,
     recycle_time: float | None = None,
     recycler_qual_module_bonus: float | None = None,
+    recycle_ratio: float | None = None,
     verbose: bool = False,
 ) -> np.array:
     """Simulate an assembler-recycler loop to calculate quality tier flows.
@@ -222,10 +193,12 @@ def assembler_recycler_loop(
             item's result count, so read it from the game. Defaults to `recipe_time / 16` (the pre-2.1.13 rule).
         recycler_qual_module_bonus: Quality chance bonus per quality module in the recyclers. Defaults to
             `qual_module_bonus`.
+        recycle_ratio: Loop ingredients returned per product recycled. Defaults to `0.25 / recipe_ratio`; see
+            `get_recycler_parameters`.
         verbose: If True, print debug information.
 
     Returns:
-        Tuple of (flow_vector, transition_matrix, total_crafting_time, max_flow_vector).
+        Tuple of (flow_vector, transition_matrix, max_flow_vector).
     """
     if isinstance(assembler_modules_config, tuple):
         assembler_modules_config = [assembler_modules_config] * NUM_TIERS
@@ -245,6 +218,7 @@ def assembler_recycler_loop(
         product_quality_to_keep if product_quality_to_keep is not None else NUM_TIERS + 1,
         recipe_ratio,
         qual_module_bonus if recycler_qual_module_bonus is None else recycler_qual_module_bonus,
+        recycle_ratio,
     )
     # Create the transition matrix
     transition_matrix = create_transition_matrix(
@@ -267,38 +241,34 @@ def assembler_recycler_loop(
     if type(input_vector) in (float, int):
         input_vector = np.array([input_vector] + [0] * (NUM_TIERS * 2 - 1))
 
-    # Initialise loop variable and output arrays
-    ii = 0
-    result_flows = [input_vector]
-    crafting_time = [[0.0, 0]]
-    total_crafting_time = 0.0
-
-    while True:
-        ii += 1
-        ct_this_iteration = compute_crafting_time(
-            result_flows[-1], crafting_time[-1], recipe_ratio, crafting_time_vector
-        )
-
-        total_crafting_time += ct_this_iteration[0]
-        crafting_time.append(ct_this_iteration)
-        result_flows.append(result_flows[-1] @ transition_matrix)
-
-        if sum(abs(result_flows[-2] - result_flows[-1])) < 1e-2:
-            # There's nothing left in the system
-            print(f"AR loop converged after {ii} iterations")
-            break
-
-    # Create the output dataframe
-    col_headers = ["I1", "I2", "I3", "I4", "I5", "P1", "P2", "P3", "P4", "P5"]
-    output_df = pd.DataFrame(data=result_flows, columns=col_headers)
-    crafting_time_df = pd.DataFrame(data=crafting_time, columns=["Crafting time", "Max time index"])
-    output_df = output_df.join(crafting_time_df)
+    # Calculate the steady state flows using the formula:
+    # x = x_0 * (I - T)^-1
+    steady_state_matrix = np.eye(2 * NUM_TIERS) - transition_matrix
+    try:
+        steady_state_flows = input_vector @ np.linalg.inv(steady_state_matrix)
+    except np.linalg.LinAlgError as err:
+        raise ValueError("The transition matrix could not be inverted.") from err
 
     if verbose:
-        print("\n## Iterations:")
-        print(output_df.head(10))
+        # Illustration only: the flows after each pass through the loop, which sum to the steady state
+        ii = 0
+        result_flows = [input_vector]
+        while True:
+            ii += 1
+            result_flows.append(result_flows[-1] @ transition_matrix)
 
-    return sum(result_flows), transition_matrix, total_crafting_time, max_flow_vector
+            if sum(abs(result_flows[-2] - result_flows[-1])) < 1e-3:
+                # There's nothing left in the system
+                print(f"AR loop converged after {ii} iterations")
+                break
+
+        col_headers = ["I1", "I2", "I3", "I4", "I5", "P1", "P2", "P3", "P4", "P5"]
+        print("\n## Iterations:")
+        print(pd.DataFrame(data=result_flows, columns=col_headers).head(10))
+
+        steady_state_flows = sum(result_flows)
+
+    return steady_state_flows, transition_matrix, max_flow_vector
 
 
 if __name__ == "__main__":
@@ -315,28 +285,27 @@ if __name__ == "__main__":
     optimal_leg_config = [(n_slots - 1, 1)] * (NUM_TIERS - 1) + [(n_slots, 0)]
 
     # AR loop for producing legendary blue circuits
-    input_vector = np.array([4.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+    input_vector = np.array([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
     results = assembler_recycler_loop(
         input_vector=input_vector,
         assembler_modules_config=full_prod_config,
         product_quality_to_keep=NUM_TIERS,
         ingredient_quality_to_keep=None,
         base_prod_bonus=base_prod,
-        recipe_ratio=1/20,  # NB: ratio of products:ingredients in the recipe
+        recipe_ratio=1 / 20,  # NB: ratio of products:ingredients in the recipe
         prod_module_bonus=BEST_PROD_MODULE,
         qual_module_bonus=BEST_QUAL_MODULE,
         speed_assemblers=[0.5, 0.5, 0.5, 0.5, 0.5],  # EM plants with 5x productivity modules
         speed_recycler=0.4,  # normal recyclers with 4x quality modules each
-        recipe_time=10,
-        num_assemblers=[20, 20, 20, 20, 5],
-        num_recyclers=2,
+        recipe_time=2,
+        num_assemblers=[2, 2, 2, 2, 1],
+        num_recyclers=1,
         verbose=True,
     )
 
     flows = results[0]
     transition_matrix = results[1]
-    total_crafting_time = results[2]
-    max_flow_vector = results[3]
+    max_flow_vector = results[2]
 
     flows_with_summed_recyclers = np.concatenate((flows[:NUM_TIERS], np.array([sum(flows[NUM_TIERS:])])))
 

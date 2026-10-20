@@ -305,6 +305,14 @@ for some items (concrete is about 10× faster) the 1/16 rule is wrong. Pass the 
 recipe from the game as `recycle_time` to get accurate crafting times and bottleneck figures. Flows and quality
 probabilities are unaffected, only the timing.
 
+### Recipes that aren't reversed by the recycler
+
+A recycler doesn't always reverse the recipe a machine used. Each recipe in `src/web/recipes.py` has `recyclable`
+(default `True`), and every item has exactly one recyclable recipe, which defines its recycling (`recycling(item)`:
+25% of the ingredients, fluids dropped, `time / 16` unless the recipe sets `recycle_time`). Alternatives such as foundry
+casting set `recyclable=False`. The loops take the resulting yield as `recycle_ratio`, and
+`python -m src.quality.pipe_chain` is a worked multi-stage example (lava to legendary iron plates via pipes).
+
 > [!WARNING]
 > Factorio 2.1.7 stopped quality modules working in asteroid reprocessing, so asteroid crushers can no longer be
 > used as a quality-upcycling loop. Crusher support (`is_asteroid_crusher`) has been removed.
