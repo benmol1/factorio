@@ -5,7 +5,7 @@ from functools import lru_cache
 import numpy as np
 import pandas as pd
 
-from src.quality.utils import NUM_TIERS, create_production_matrix
+from src.quality.utils import BEST_QUAL_MODULE, NUM_TIERS, create_production_matrix
 
 
 @lru_cache
@@ -177,7 +177,7 @@ if __name__ == "__main__":
 
     # Recycler loop for tungsten ore
     # input_vector = np.array([45.0, 15.0, 0.0, 0.0, 0.0])
-    # q = 4 * 0.062
+    # q = 4 * BEST_QUAL_MODULE
     # results = recycler_loop(
     #     input_vector=input_vector,
     #     quality_chance=q,
@@ -189,7 +189,7 @@ if __name__ == "__main__":
 
     # Recycler loop for biter eggs
     input_vector = np.array([32.0, 0.0, 0.0, 0.0, 0.0])
-    q = 4 * 0.062
+    q = 4 * BEST_QUAL_MODULE
     results = recycler_loop(
         input_vector=input_vector,
         quality_chance=q,

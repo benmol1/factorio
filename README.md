@@ -44,17 +44,25 @@ This project uses [`uv`](https://docs.astral.sh/uv/) for everything.
 ```bash
 git clone https://github.com/benmol1/factorio.git
 cd factorio
-uv sync                 # create the venv and install dependencies
 
-uv run python -m src.quality.pure_recycler_loop         # run the recycler-only demo
-uv run python -m src.quality.assembler_recycler_loop    # run the assembler + recycler demo
-uv run pytest                                           # run the test suite
+# create the venv and install dependencies
+uv sync
+
+# run the recycler-only demo
+uv run python -m src.quality.pure_recycler_loop
+
+# run the assembler + recycler demo
+uv run python -m src.quality.assembler_recycler_loop
+
+# run the test suite
+uv run pytest
 ```
 
 ### 🖥️ Web frontend
 
 ```bash
-uv run uvicorn src.web.app:app --reload --port 2048  # then open http://127.0.0.1:2048
+# run the backend. Open localhost at port 2048 to view the web frontend
+uv run uvicorn src.web.app:app --reload --port 2048
 ```
 
 Pick machines, module tiers and qualities in game terms. The app works out speeds, quality chances and
@@ -200,7 +208,7 @@ the top) and choose independently which tier to extract for ingredients and for 
 
 ### ♻️ Tungsten ore through a pure recycler loop
 
-45 Normal + 15 Uncommon ore per second, 5 legendary recyclers (speed 1) with 4 quality modules (24.8% quality):
+45 Normal + 15 Uncommon ore per second, 5 legendary recyclers (speed 1) with 4 quality modules (25% quality):
 
 ```python
 import numpy as np
@@ -210,7 +218,7 @@ input_vector = np.array([45.0, 15.0, 0.0, 0.0, 0.0])
 
 flows, transition_matrix, total_crafting_time = recycler_loop(
     input_vector=input_vector,
-    quality_chance=4 * 0.062,
+    quality_chance=4 * 0.0625,
     recipe_time=1,
     num_recyclers=5,
     speed_recycler=1,
@@ -222,10 +230,10 @@ print(f"Legendary per hour: {rates[4] * 3600:.1f}")
 
 ```text
 ## Flow per second:
-[55.42 22.28  1.91  0.32  0.05]
+[55.38 22.3   1.93  0.33  0.05]
 ## Production rates per minute:
-[2700.   1085.54   93.15   15.72    2.95]
-## Legendary production rate per hour: 176.8
+[2700.   1086.92   93.94   15.9     2.99]
+## Legendary production rate per hour: 179.4
 ## Total crafting time: 1.00 seconds
 ```
 
@@ -238,12 +246,12 @@ theoretical maximum:
 
 ```text
 ## Flow per second:
-[ 9.32  0.91  0.32  0.09  0.03 10.63]
+[ 9.31  0.91  0.32  0.09  0.03 10.63]
 ## Max flow per second:
 [10.    1.    0.5   0.25  0.1  12.8 ]
 
 ## Flows over max:
-[0.93 0.91 0.63 0.36 0.26 0.83]
+[0.93 0.91 0.64 0.36 0.26 0.83]
 ```
 
 Any ratio above `1.0` means that tier is the bottleneck and the demo prints which tiers need more machines.
@@ -256,7 +264,7 @@ Any ratio above `1.0` means that tier is the bottleneck and the demo prints whic
 |------|-------------|
 | `NUM_TIERS` | Number of quality tiers (`5`). |
 | `BEST_PROD_MODULE` | Best productivity module bonus (`0.25`). |
-| `BEST_QUAL_MODULE` | Best quality module bonus (`0.062`). |
+| `BEST_QUAL_MODULE` | Best quality module bonus (`0.0625`). |
 | `QualityTier` | `IntEnum` of the five tiers. |
 | `quality_probability(q, in_tier, out_tier)` | Probability of one tier upgrading to another. |
 | `quality_matrix(q)` | 5×5 transition matrix for quality chance `q`. |
@@ -320,10 +328,17 @@ casting set `recyclable=False`. The loops take the resulting yield as `recycle_r
 ## 🛠️ Development
 
 ```bash
-uv sync                      # install runtime + dev dependencies
-uv run pytest                # tests
-uv run ruff format .         # format
-uv run ruff check . --fix    # lint
+# install runtime + dev dependencies
+uv sync
+
+# tests
+uv run pytest
+
+# format
+uv run ruff format .
+
+# lint
+uv run ruff check . --fix
 ```
 
 Layout:

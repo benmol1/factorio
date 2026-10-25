@@ -63,8 +63,8 @@ def test_recycler_loop_matches_tungsten_example():
     )
     assert res.status_code == 200
     data = res.json()
-    assert data["production_rate"][LEGENDARY] * 3600 == pytest.approx(176.8, abs=0.1)
-    assert np.allclose(data["flows"], [55.42, 22.28, 1.91, 0.32, 0.05], atol=0.01)
+    assert data["production_rate"][LEGENDARY] * 3600 == pytest.approx(179.4, abs=0.1)
+    assert np.allclose(data["flows"], [55.38, 22.30, 1.93, 0.33, 0.05], atol=0.01)
     assert data["kept"] == [False, False, False, False, True]
 
 
@@ -73,7 +73,7 @@ def test_assembler_loop_matches_u238_example():
     res = client.post("/api/assembler-loop", json=u238_request())
     assert res.status_code == 200
     data = res.json()
-    assert np.allclose(data["ingredients"]["flows"], [9.32, 0.91, 0.32, 0.09, 0.03], atol=0.01)
+    assert np.allclose(data["ingredients"]["flows"], [9.31, 0.91, 0.32, 0.09, 0.03], atol=0.01)
     assert np.allclose(data["ingredients"]["max_flow"][:4], [10, 1, 0.5, 0.25])
     assert data["recycler"]["flow"] == pytest.approx(10.63, abs=0.01)
     assert data["recycler"]["max_flow"] == pytest.approx(12.8)

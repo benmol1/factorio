@@ -115,7 +115,7 @@ class TestCreateProductionMatrix:
 
     def test_recycler_params(self):
         """Test typical recycler parameters (25% return, 4 quality modules)."""
-        quality_chance = 4 * 0.062  # 4 legendary quality modules
+        quality_chance = 4 * 0.0625  # 4 legendary quality modules
         production_ratio = 0.25  # Recycling returns 25%
         params = [(quality_chance, production_ratio)] * 4 + [(0, 0)]
 
