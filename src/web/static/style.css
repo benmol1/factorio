@@ -150,6 +150,7 @@ input::placeholder { color: #6d6862; }
 .presets { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; color: var(--muted); flex-wrap: wrap; }
 
 /* Buttons */
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .btn {
   font: inherit; font-weight: 700; cursor: pointer; color: #1b1a1b;
   background: #8e8a85; border: 0; padding: 6px 18px;

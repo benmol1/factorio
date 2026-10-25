@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field, model_validator
 from src.quality.assembler_recycler_loop import assembler_recycler_loop
 from src.quality.pipe_chain import ChainConfig, solve_chain
 from src.quality.pure_recycler_loop import get_production_rate, recycler_loop
-from src.quality.solver import solve_machine_quality, solve_recycler_quality
+from src.quality.solver import optimise_modules, solve_machine_quality, solve_recycler_quality
 from src.quality.utils import NUM_TIERS
 from src.web.game_data import (
     MACHINES,
@@ -251,6 +251,33 @@ def solve(req: AssemblerLoopRequest) -> dict:
             for q, n in zip(solution.assembler_qualities, solution.num_assemblers, strict=True)
         ],
         "recycler": {"quality": solution.recycler_quality, "count": solution.num_recyclers},
+    }
+
+
+@app.post("/api/optimise-modules")
+def optimise_assembler_modules(req: AssemblerLoopRequest) -> dict:
+    """Find the productivity/quality module split in each tier's assemblers that maximises the kept output.
+
+    The machines and module counts in the request's `tiers` are ignored. The recyclers' quality modules are kept.
+    """
+    loop = _loop_kwargs(req)
+    try:
+        optimum = optimise_modules(
+            input_vector=loop["input_vector"],
+            slots=MACHINES[req.machine].slots,
+            product_quality_to_keep=loop["product_quality_to_keep"],
+            ingredient_quality_to_keep=loop["ingredient_quality_to_keep"],
+            base_prod_bonus=loop["base_prod_bonus"],
+            recipe_ratio=loop["recipe_ratio"],
+            prod_module_bonus=loop["prod_module_bonus"],
+            qual_module_bonus=loop["qual_module_bonus"],
+            recycler_qual_module_bonus=loop["recycler_qual_module_bonus"],
+        )
+    except ValueError as err:
+        raise HTTPException(422, str(err)) from err
+    return {
+        "tiers": [None if m is None else {"prod_modules": m[0], "quality_modules": m[1]} for m in optimum.modules],
+        "output": optimum.output,
     }
 
 

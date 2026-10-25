@@ -177,3 +177,25 @@ def test_recycler_solve_leaves_no_bottleneck_and_is_minimal():
 
     assert load(solved["count"], solved["quality"]) <= 1 + 1e-9
     assert solved["count"] == 1 or load(solved["count"] - 1, solved["quality"]) > 1
+
+
+def test_optimise_modules_endpoint_beats_the_current_modules():
+    """The optimised modules fill every slot and yield at least as much as the request's modules."""
+    req = u238_request()
+    optimum = client.post("/api/optimise-modules", json=req).json()
+    assert optimum["tiers"][-1] is None
+    assert all(t["prod_modules"] + t["quality_modules"] == 4 for t in optimum["tiers"][:-1])
+
+    def kept_flow(tiers):
+        result = client.post("/api/assembler-loop", json=req | {"tiers": tiers}).json()["ingredients"]
+        return result["flows"][-1]
+
+    optimised = [t | (o or {}) for t, o in zip(req["tiers"], optimum["tiers"], strict=True)]
+    assert kept_flow(optimised) == pytest.approx(optimum["output"])
+    assert kept_flow(optimised) >= kept_flow(req["tiers"]) - 1e-9
+
+
+def test_optimise_modules_needs_something_kept():
+    """Keeping nothing is rejected rather than optimising for no output."""
+    req = u238_request(ingredient_quality_to_keep=None, product_quality_to_keep=None)
+    assert client.post("/api/optimise-modules", json=req).status_code == 422

@@ -1,11 +1,13 @@
 """Tests for the machine count solver."""
 
+import itertools
+
 import numpy as np
 import pytest
 
 from src.quality import NUM_TIERS
 from src.quality.assembler_recycler_loop import assembler_recycler_loop
-from src.quality.solver import solve_machine_counts
+from src.quality.solver import optimise_modules, solve_machine_counts
 
 # Uranium ammo loop: legendary ingredients are kept and every product is recycled
 U238_LOOP = {
@@ -100,3 +102,74 @@ class TestSolveMachineCounts:
         assembler_loads, recycler_load = loads(counts, max(result.num_recyclers, 1), **loop)
         assert all(load <= 1 + 1e-9 for load in assembler_loads)
         assert recycler_load <= 1 + 1e-9
+
+
+def kept_legendary_products(modules, base_prod_bonus):
+    """Legendary product flow from the full simulation, for one split per ingredient tier."""
+    flows, _, _ = assembler_recycler_loop(
+        input_vector=np.array([1.0] + [0.0] * (2 * NUM_TIERS - 1)),
+        assembler_modules_config=modules,
+        product_quality_to_keep=NUM_TIERS,
+        ingredient_quality_to_keep=None,
+        base_prod_bonus=base_prod_bonus,
+    )
+    return flows[2 * NUM_TIERS - 1]
+
+
+@pytest.mark.parametrize("base_prod_bonus", [1.0, 1.8, 2.8])
+def test_optimise_modules_matches_brute_force(base_prod_bonus):
+    """The optimum is the best of every split, as measured by the full loop simulation."""
+    slots = 4
+    result = optimise_modules(
+        np.array([1.0] + [0.0] * (2 * NUM_TIERS - 1)),
+        slots=slots,
+        product_quality_to_keep=NUM_TIERS,
+        ingredient_quality_to_keep=None,
+        base_prod_bonus=base_prod_bonus,
+    )
+    brute_force = max(
+        kept_legendary_products([(slots - q, q) for q in splits], base_prod_bonus)
+        for splits in itertools.product(range(slots + 1), repeat=NUM_TIERS)
+    )
+    assert result.output == pytest.approx(brute_force)
+    assert result.output == pytest.approx(kept_legendary_products(result.modules, base_prod_bonus))
+
+
+def test_optimise_modules_three_to_one_with_high_base_productivity():
+    """With an EM plant and research (180% base), legendary modules in 4 slots want 3 prod : 1 quality."""
+    result = optimise_modules(
+        np.array([1.0] + [0.0] * (2 * NUM_TIERS - 1)),
+        slots=4,
+        product_quality_to_keep=NUM_TIERS,
+        ingredient_quality_to_keep=None,
+        base_prod_bonus=1.8,
+    )
+    assert result.modules[: NUM_TIERS - 1] == [(3, 1)] * (NUM_TIERS - 1)
+
+
+def test_optimise_modules_skips_kept_ingredient_tiers():
+    """Kept ingredients aren't assembled, so they get no modules."""
+    result = optimise_modules(
+        np.array([8.0] + [0.0] * (2 * NUM_TIERS - 1)),
+        slots=4,
+        product_quality_to_keep=None,
+        ingredient_quality_to_keep=NUM_TIERS,
+        base_prod_bonus=1.0,
+    )
+    assert result.modules[-1] is None
+    assert all(m is not None and sum(m) == 4 for m in result.modules[:-1])
+    # Beats the loop with all quality modules, and matches the simulation of its own answer
+    for modules in ([(0, 4)] * (NUM_TIERS - 1) + [(4, 0)], result.modules[:-1] + [(4, 0)]):
+        flows = assembler_recycler_loop(
+            **(U238_LOOP | {"assembler_modules_config": modules, "prod_module_bonus": 0.25})
+        )[0]
+        assert result.output >= flows[NUM_TIERS - 1] - 1e-9
+    assert result.output == pytest.approx(flows[NUM_TIERS - 1])
+
+
+def test_optimise_modules_needs_something_kept():
+    """With nothing leaving the loop there is no output to maximise."""
+    with pytest.raises(ValueError):
+        optimise_modules(
+            np.array([1.0] + [0.0] * 9), slots=4, product_quality_to_keep=None, ingredient_quality_to_keep=None
+        )
