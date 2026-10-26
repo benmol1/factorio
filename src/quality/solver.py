@@ -37,6 +37,8 @@ class ModuleOptimum:
     modules: list[tuple[int, int] | None]
     # Kept output in items per second (see `optimise_modules` for which items count)
     output: float
+    # Assemblers plus recyclers the loop keeps busy, as a fraction. Only set when optimising per machine
+    machines: float | None = None
 
 
 @dataclass(frozen=True)
@@ -210,8 +212,17 @@ def optimise_modules(
     qual_module_bonus: float = BEST_QUAL_MODULE,
     recycler_qual_module_bonus: float | None = None,
     recycle_ratio: float | None = None,
+    assembler_speeds_by_split: list[list[float]] | None = None,
+    speed_recycler: float = 0.5,
+    recipe_time: float = 1,
+    recycle_time: float | None = None,
 ) -> ModuleOptimum:
     """Find the productivity/quality module split in each assembler tier that maximises the kept output.
+
+    By default this is the output for a fixed input. Pass `assembler_speeds_by_split` to maximise the output per
+    machine instead: the machines needed are the flow through each stage divided by what one machine carries, so the
+    modules' speed penalties now matter. It is a fraction rather than whole machines, which keeps the winner
+    independent of the input rate.
 
     For a fixed input rate, the output is a function of the module split alone, so this tries every split. Module
     speed penalties and machine counts only set capacity, not flow, so they don't matter here.
@@ -236,6 +247,13 @@ def optimise_modules(
         recycler_qual_module_bonus: Quality chance bonus per quality module in the recyclers. Defaults to
             `qual_module_bonus`.
         recycle_ratio: Loop ingredients returned per product recycled. Defaults to `0.25 / recipe_ratio`.
+        assembler_speeds_by_split: Assembler speed per ingredient tier for each number of quality modules, indexed
+            `[quality modules][tier]`. Speeds already include the module penalties and the machine quality. Setting
+            it switches the objective to output per machine.
+        speed_recycler: Speed of the recyclers. Only used per machine.
+        recipe_time: Base recipe crafting time in seconds. Only used per machine.
+        recycle_time: Base time in seconds of the product's recycling recipe. Defaults to `recipe_time / 16`. Only
+            used per machine.
 
     Returns:
         A ModuleOptimum.
@@ -275,7 +293,15 @@ def optimise_modules(
     else:
         output_slice = slice(ingredient_keep - 1, NUM_TIERS)
 
+    per_machine = assembler_speeds_by_split is not None
+    if recycle_time is None:
+        recycle_time = recipe_time / 16
+    recycler_capacity = speed_recycler / recycle_time
+    recycled = NUM_TIERS if product_quality_to_keep is None else product_quality_to_keep - 1
+
     best_output = -math.inf
+    best_score = -math.inf
+    best_machines = None
     best_splits: tuple[int, ...] = ()
     identity = np.eye(2 * NUM_TIERS)
     for splits in itertools.product(range(slots + 1), repeat=assembled):
@@ -294,12 +320,21 @@ def optimise_modules(
             continue
 
         output = float(flows[output_slice].sum())
+        machines = None
+        score = output
+        if per_machine:
+            machines = sum(
+                flows[tier] * recipe_time * recipe_ratio / assembler_speeds_by_split[q][tier]
+                for tier, q in enumerate(splits)
+            )
+            machines += float(flows[NUM_TIERS : NUM_TIERS + recycled].sum()) / recycler_capacity
+            score = output / machines if machines > TOLERANCE else -math.inf
         # Strict improvement only, so ties go to the earlier split, i.e. fewer quality modules
-        if not best_splits or output > best_output + TOLERANCE * max(1.0, abs(best_output)):
-            best_output, best_splits = output, splits
+        if not best_splits or score > best_score + TOLERANCE * max(1.0, abs(best_score)):
+            best_output, best_score, best_machines, best_splits = output, score, machines, splits
 
     if not best_splits and assembled:
         raise ValueError("No module split gives a loop with a steady state.")
 
     modules = [(slots - q, q) for q in best_splits] + [None] * (NUM_TIERS - assembled)
-    return ModuleOptimum(modules, best_output)
+    return ModuleOptimum(modules, best_output, best_machines)

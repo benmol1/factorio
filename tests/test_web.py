@@ -195,6 +195,16 @@ def test_optimise_modules_endpoint_beats_the_current_modules():
     assert kept_flow(optimised) >= kept_flow(req["tiers"]) - 1e-9
 
 
+def test_optimise_modules_per_machine_endpoint_reports_machines():
+    """The per-machine optimiser fills every slot, never beats the output optimiser's output, and reports machines."""
+    req = u238_request()
+    most = client.post("/api/optimise-modules", json=req).json()
+    per_machine = client.post("/api/optimise-modules-per-machine", json=req).json()
+    assert per_machine["machines"] > 0
+    assert per_machine["output"] <= most["output"] + 1e-9
+    assert all(t["prod_modules"] + t["quality_modules"] == 4 for t in per_machine["tiers"][:-1])
+
+
 def test_optimise_modules_needs_something_kept():
     """Keeping nothing is rejected rather than optimising for no output."""
     req = u238_request(ingredient_quality_to_keep=None, product_quality_to_keep=None)

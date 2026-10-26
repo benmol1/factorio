@@ -147,6 +147,28 @@ def test_optimise_modules_three_to_one_with_high_base_productivity():
     assert result.modules[: NUM_TIERS - 1] == [(3, 1)] * (NUM_TIERS - 1)
 
 
+def test_optimise_modules_per_machine_trades_output_for_fewer_machines():
+    """Slow productivity modules make machines expensive, so the per-machine optimum uses fewer of them."""
+    slots = 4
+    loop = {
+        "input_vector": np.array([1.0] + [0.0] * (2 * NUM_TIERS - 1)),
+        "slots": slots,
+        "product_quality_to_keep": NUM_TIERS,
+        "ingredient_quality_to_keep": None,
+        "base_prod_bonus": 1.8,
+    }
+    # Each productivity module costs a fifth of the machine's speed, each quality module nothing
+    speeds = [[1 - (slots - q) / 5] * NUM_TIERS for q in range(slots + 1)]
+
+    most_output = optimise_modules(**loop)
+    per_machine = optimise_modules(**loop, assembler_speeds_by_split=speeds)
+
+    assert most_output.machines is None
+    assert per_machine.machines > 0
+    assert per_machine.output <= most_output.output
+    assert sum(m[0] for m in per_machine.modules) < sum(m[0] for m in most_output.modules)
+
+
 def test_optimise_modules_skips_kept_ingredient_tiers():
     """Kept ingredients aren't assembled, so they get no modules."""
     result = optimise_modules(

@@ -101,10 +101,11 @@
 
         <fieldset class="inset">
           <legend>Solver</legend>
-          <p class="hint">Solve fills in the fewest machines per stage with no bottlenecks, then the lowest machine quality that needs no more of them. Optimise modules fills in the productivity/quality split in each tier's assemblers that gives the most kept output for this input; press Solve afterwards to resize the machines.</p>
+          <p class="hint">Solve fills in the fewest machines per stage with no bottlenecks, then the lowest machine quality that needs no more of them. Optimise modules fills in the productivity/quality split in each tier's assemblers that gives the most kept output for this input, which suits scarce inputs. Optimise per machine gives the most kept output per assembler and recycler (at the machine qualities set above), which suits limited space or build cost. Press Solve afterwards to resize the machines.</p>
           <div class="btn-row">
             <button type="button" class="btn" id="solve">Solve</button>
             <button type="button" class="btn" id="optimise-modules">Optimise modules</button>
+            <button type="button" class="btn" id="optimise-modules-per-machine">Optimise per machine</button>
           </div>
           <p class="hint" id="solve-status"></p>
         </fieldset>
