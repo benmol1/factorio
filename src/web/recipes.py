@@ -54,6 +54,7 @@ ITEMS = {
     "fluoroketone-cold": Item("Fluoroketone (cold)", "fluoroketone_cold", fluid=True),
     "fluoroketone-hot": Item("Fluoroketone (hot)", "fluoroketone_hot", fluid=True),
     "foundry": Item("Foundry", "foundry"),
+    "grenade": Item("Grenade", "grenade"),
     "holmium-plate": Item("Holmium plate", "holmium_plate"),
     "iron-gear-wheel": Item("Iron gear wheel", "iron_gear_wheel"),
     "iron-plate": Item("Iron plate", "iron_plate"),
@@ -240,6 +241,14 @@ RECIPES = {
         products={"turbo-underground-belt": 2},
         machines=("foundry",),
         group="Logistics",
+    ),
+    "grenade": Recipe(
+        "Grenade",
+        time=8,
+        ingredients={"coal": 10, "iron-plate": 5},
+        products={"grenade": 1},
+        machines=ASSEMBLERS,
+        group="Combat",
     ),
     "low-density-structure": Recipe(
         "Low density structure",
