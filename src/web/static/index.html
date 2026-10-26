@@ -101,12 +101,15 @@
 
         <fieldset class="inset">
           <legend>Solver</legend>
-          <p class="hint">Solve fills in the fewest machines per stage with no bottlenecks, then the lowest machine quality that needs no more of them. Optimise modules fills in the productivity/quality split in each tier's assemblers that gives the most kept output for this input; press Solve afterwards to resize the machines.</p>
+          <p class="hint">Solve fills in the fewest machines per stage with no bottlenecks, then the lowest machine quality that needs no more of them. Optimise (input-constrained) fills in the productivity/quality split in each tier's assemblers that gives the most kept output for this input, which suits scarce inputs. Optimise (machine-constrained) gives the most kept output per assembler and recycler (at the machine qualities set above), which suits limited space or build cost. Press Solve afterwards to resize the machines.</p>
           <div class="btn-row">
             <button type="button" class="btn" id="solve">Solve</button>
-            <button type="button" class="btn" id="optimise-modules">Optimise modules</button>
+            <button type="button" class="btn" id="optimise-modules">Optimise (input-constrained)</button>
+            <button type="button" class="btn" id="optimise-modules-per-machine">Optimise (machine-constrained)</button>
           </div>
           <p class="hint" id="solve-status"></p>
+          <label>Machine cost k (input #/s per machine) <input type="number" name="efficiency_k" min="0" step="any" value="1"></label>
+          <p class="hint">Sets the build efficiency shown under the results: output (#/min) / (input (#/s) + k × num_machines).</p>
         </fieldset>
 
         <button type="submit" class="btn confirm">Calculate</button>

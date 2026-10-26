@@ -166,7 +166,8 @@ function initForms() {
   $("#solve-recycler").addEventListener("click", solveRecycler);
   $("#form-assembler").addEventListener("submit", (e) => { e.preventDefault(); calculateAssembler(); });
   $("#solve").addEventListener("click", solveAssembler);
-  $("#optimise-modules").addEventListener("click", optimiseModules);
+  $("#optimise-modules").addEventListener("click", () => optimiseModules("/api/optimise-modules"));
+  $("#optimise-modules-per-machine").addEventListener("click", () => optimiseModules("/api/optimise-modules-per-machine"));
   $$("[data-preset]").forEach((b) =>
     b.addEventListener("click", () => {
       PRESETS[b.dataset.preset]();
@@ -457,9 +458,19 @@ async function solveRecycler() {
   calculateRecycler();
 }
 
+// One-line summary of how much infrastructure a setup needs
+function buildCostHint(machines, recyclers, modules) {
+  const n = (x, word) => `${x} ${word}${x === 1 ? "" : "s"}`;
+  const parts = [];
+  if (machines !== null) parts.push(n(machines, "assembler"));
+  parts.push(n(recyclers, "recycler"), n(modules, "module"));
+  return `<p class="hint build-cost">Build requires: ${parts.join(", ")}.</p>`;
+}
+
 function renderRecycler(d, out) {
   const keepFrom = d.kept.indexOf(true);
   const output = d.production_rate.reduce((s, r, i) => s + (d.kept[i] ? r : 0), 0);
+  const recCount = recyclerSetup($("#form-recycler")).count;
   out.innerHTML = `
     <h2>Results</h2>
     <div class="stat-cards">
@@ -486,7 +497,8 @@ function renderRecycler(d, out) {
     <p class="machine-stats">
       Recyclers: ${pct(d.derived.quality_chance)} quality chance, speed ${fmt(d.derived.recycler_speed, 2)}.
       Production rates match the in-game production statistics, which don't count items recycled into themselves.
-    </p>`;
+    </p>
+    ${buildCostHint(null, recCount, recCount * GAME.recycler_slots)}`;
 }
 
 // ---------- Assembler loop ----------
@@ -554,8 +566,8 @@ async function solveAssembler() {
   calculateAssembler();
 }
 
-// Fills in the productivity/quality split per tier that maximises the kept output, then shows the result
-async function optimiseModules() {
+// Fills in the productivity/quality split per tier from an optimiser endpoint, then shows the result
+async function optimiseModules(endpoint) {
   const f = $("#form-assembler");
   const status = $("#solve-status");
   if (!checkSlots()) return;
@@ -563,7 +575,7 @@ async function optimiseModules() {
   status.textContent = "Optimising…";
   let data;
   try {
-    const res = await fetch("/api/optimise-modules", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(assemblerRequest(f)) });
+    const res = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(assemblerRequest(f)) });
     data = await res.json();
     if (!res.ok) throw new Error(formatError(data));
   } catch (err) {
@@ -592,6 +604,16 @@ function renderAssembler(d, out, machine, recipe, ingredient, inputFlow) {
   const loads = ing.flows.map((x, i) => (ing.kept[i] ? 0 : x / ing.max_flow[i]));
   const recLoad = d.recycler.flow / d.recycler.max_flow;
   const recycler = recyclerSetup($("#form-assembler"));
+  // Kept tiers aren't assembled, so they need no machines or modules
+  const asmForm = $("#form-assembler");
+  let assemblers = 0;
+  let asmModules = 0;
+  TIERS.forEach((_, i) => {
+    if (ing.kept[i]) return;
+    const count = Number(asmForm[`count_${i}`].value);
+    assemblers += count;
+    asmModules += count * (Number(asmForm[`prod_${i}`].value) + Number(asmForm[`qual_${i}`].value));
+  });
   const bottlenecks = loads.map((l, i) => (l > 1 ? TIERS[i] : null)).filter(Boolean);
   if (recLoad > 1) bottlenecks.push("Recyclers");
 
@@ -674,7 +696,20 @@ function renderAssembler(d, out, machine, recipe, ingredient, inputFlow) {
           <td class="num">${fmtFlow(d.recycler.max_flow)}</td>
         </tr>
       </tbody>
-    </table>`;
+    </table>
+    ${buildCostHint(assemblers, recycler.count, asmModules + recycler.count * GAME.recycler_slots)}
+    ${efficiencyHint(
+      ((keptIng >= 0 ? keptIngFlow : 0) + (keptProd >= 0 ? prod.flows[keptProd] : 0)) * 60,
+      inputFlow,
+      assemblers + recycler.count,
+    )}`;
+}
+
+// Kept output per unit of input, per machine, and per total cost, where k is the input a machine is worth
+function efficiencyHint(outputPerMin, inputFlow, machines) {
+  const ratio = (n) => (isFinite(n) ? fmtFlow(n) : "–");
+  const k = Number($("#form-assembler").efficiency_k.value) || 0;
+  return `<p class="hint">Output (#/min) / input (#/s): ${ratio(outputPerMin / inputFlow)} · Output (#/min) / num_machines: ${ratio(outputPerMin / machines)} · Output (#/min) / (input (#/s) + k × num_machines), k = ${k}: ${ratio(outputPerMin / (inputFlow + k * machines))}</p>`;
 }
 
 // ---------- Lava → iron plate chain ----------

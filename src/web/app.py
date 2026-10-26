@@ -254,13 +254,24 @@ def solve(req: AssemblerLoopRequest) -> dict:
     }
 
 
-@app.post("/api/optimise-modules")
-def optimise_assembler_modules(req: AssemblerLoopRequest) -> dict:
+def _optimise_modules(req: AssemblerLoopRequest, per_machine: bool) -> dict:
     """Find the productivity/quality module split in each tier's assemblers that maximises the kept output.
 
-    The machines and module counts in the request's `tiers` are ignored. The recyclers' quality modules are kept.
+    With `per_machine`, it maximises the output per assembler and recycler instead, using each tier's machine quality
+    from the request. The machine counts and module counts in the request's `tiers` are ignored either way. The
+    recyclers' quality modules are kept.
     """
     loop = _loop_kwargs(req)
+    speeds = None
+    if per_machine:
+        slots = MACHINES[req.machine].slots
+        speeds = [
+            [
+                _assembler_speed(req, TierSetup(prod_modules=slots - q, quality_modules=q), t.machine_quality)
+                for t in req.tiers
+            ]
+            for q in range(slots + 1)
+        ]
     try:
         optimum = optimise_modules(
             input_vector=loop["input_vector"],
@@ -272,13 +283,30 @@ def optimise_assembler_modules(req: AssemblerLoopRequest) -> dict:
             prod_module_bonus=loop["prod_module_bonus"],
             qual_module_bonus=loop["qual_module_bonus"],
             recycler_qual_module_bonus=loop["recycler_qual_module_bonus"],
+            assembler_speeds_by_split=speeds,
+            speed_recycler=recycler_speed(req.recycler.quality),
+            recipe_time=req.recipe_time,
+            recycle_time=req.recycle_time,
         )
     except ValueError as err:
         raise HTTPException(422, str(err)) from err
     return {
         "tiers": [None if m is None else {"prod_modules": m[0], "quality_modules": m[1]} for m in optimum.modules],
         "output": optimum.output,
+        "machines": optimum.machines,
     }
+
+
+@app.post("/api/optimise-modules")
+def optimise_assembler_modules(req: AssemblerLoopRequest) -> dict:
+    """Find the module split that gives the most kept output for this input."""
+    return _optimise_modules(req, per_machine=False)
+
+
+@app.post("/api/optimise-modules-per-machine")
+def optimise_assembler_modules_per_machine(req: AssemblerLoopRequest) -> dict:
+    """Find the module split that gives the most kept output per assembler and recycler."""
+    return _optimise_modules(req, per_machine=True)
 
 
 @app.post("/api/pipe-chain")
