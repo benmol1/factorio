@@ -697,7 +697,19 @@ function renderAssembler(d, out, machine, recipe, ingredient, inputFlow) {
         </tr>
       </tbody>
     </table>
-    ${buildCostHint(assemblers, recycler.count, asmModules + recycler.count * GAME.recycler_slots)}`;
+    ${buildCostHint(assemblers, recycler.count, asmModules + recycler.count * GAME.recycler_slots)}
+    ${efficiencyHint(
+      ((keptIng >= 0 ? keptIngFlow : 0) + (keptProd >= 0 ? prod.flows[keptProd] : 0)) * 60,
+      inputFlow,
+      assemblers + recycler.count,
+    )}`;
+}
+
+// Kept output per unit of input, per machine, and per total cost, where k is the input a machine is worth
+function efficiencyHint(outputPerMin, inputFlow, machines) {
+  const ratio = (n) => (isFinite(n) ? fmtFlow(n) : "–");
+  const k = Number($("#form-assembler").efficiency_k.value) || 0;
+  return `<p class="hint">Output (#/min) / input (#/s): ${ratio(outputPerMin / inputFlow)} · Output (#/min) / num_machines: ${ratio(outputPerMin / machines)} · Output (#/min) / (input (#/s) + k × num_machines), k = ${k}: ${ratio(outputPerMin / (inputFlow + k * machines))}</p>`;
 }
 
 // ---------- Lava → iron plate chain ----------
