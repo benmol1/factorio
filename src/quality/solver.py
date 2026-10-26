@@ -1,13 +1,19 @@
 from __future__ import annotations
 
+import itertools
 import math
 from dataclasses import dataclass
 
 import numpy as np
 
-from src.quality.assembler_recycler_loop import assembler_recycler_loop
+from src.quality.assembler_recycler_loop import (
+    assembler_recycler_loop,
+    create_transition_matrix,
+    get_assembler_parameters,
+    get_recycler_parameters,
+)
 from src.quality.pure_recycler_loop import recycler_loop
-from src.quality.utils import BEST_PROD_MODULE, BEST_QUAL_MODULE, NUM_TIERS
+from src.quality.utils import BEST_PROD_MODULE, BEST_QUAL_MODULE, NUM_TIERS, create_production_matrix
 
 # Flows are floats, so a machine that is loaded to exactly 100% shouldn't round up to another machine
 TOLERANCE = 1e-9
@@ -21,6 +27,16 @@ class QualitySolution:
     num_assemblers: list[int]
     recycler_quality: int
     num_recyclers: int
+
+
+@dataclass(frozen=True)
+class ModuleOptimum:
+    """The module split that maximises the kept output of an assembler-recycler loop."""
+
+    # (productivity, quality) modules per ingredient tier. None for tiers that aren't assembled (kept ingredients)
+    modules: list[tuple[int, int] | None]
+    # Kept output in items per second (see `optimise_modules` for which items count)
+    output: float
 
 
 @dataclass(frozen=True)
@@ -181,3 +197,109 @@ def solve_machine_quality(
     recycler_quality = lowest_quality([sol.num_recyclers for sol in solutions])
 
     return QualitySolution(qualities, counts, recycler_quality, solutions[recycler_quality].num_recyclers)
+
+
+def optimise_modules(
+    input_vector: np.ndarray,
+    slots: int,
+    product_quality_to_keep: int | None = NUM_TIERS,
+    ingredient_quality_to_keep: int | None = NUM_TIERS,
+    base_prod_bonus: float = 0,
+    recipe_ratio: float = 1,
+    prod_module_bonus: float = BEST_PROD_MODULE,
+    qual_module_bonus: float = BEST_QUAL_MODULE,
+    recycler_qual_module_bonus: float | None = None,
+    recycle_ratio: float | None = None,
+) -> ModuleOptimum:
+    """Find the productivity/quality module split in each assembler tier that maximises the kept output.
+
+    For a fixed input rate, the output is a function of the module split alone, so this tries every split. Module
+    speed penalties and machine counts only set capacity, not flow, so they don't matter here.
+
+    Every slot is filled: an empty slot is never better than a productivity module, so a split is just the number of
+    quality modules `q` in 0..slots, with `slots - q` productivity modules. Each assembled tier picks its own split
+    (the best split differs by tier), which is `(slots + 1) ** assembled tiers` loops. The loop is linear in the input,
+    so the winner doesn't depend on the input rate.
+
+    The output is the flow of the kept products if `product_quality_to_keep` is set, otherwise of the kept ingredients.
+    Kept tiers are summed (e.g. keeping Epic and up counts both). If both are kept, only the products are optimised.
+
+    Args:
+        input_vector: The ingredients and items intake of the system.
+        slots: Module slots in the assemblers.
+        product_quality_to_keep: Min quality tier to extract products. None = recycle all.
+        ingredient_quality_to_keep: Min quality tier to extract ingredients. None = assemble all.
+        base_prod_bonus: Base productivity from machine + technologies.
+        recipe_ratio: Ratio of products to ingredients in the recipe.
+        prod_module_bonus: Productivity bonus per productivity module.
+        qual_module_bonus: Quality chance bonus per quality module.
+        recycler_qual_module_bonus: Quality chance bonus per quality module in the recyclers. Defaults to
+            `qual_module_bonus`.
+        recycle_ratio: Loop ingredients returned per product recycled. Defaults to `0.25 / recipe_ratio`.
+
+    Returns:
+        A ModuleOptimum.
+
+    Raises:
+        ValueError: If nothing is kept, so there is no output to maximise.
+    """
+    if product_quality_to_keep is None and ingredient_quality_to_keep is None:
+        raise ValueError("Keep some products or ingredients, or there is no output to maximise.")
+
+    ingredient_keep = NUM_TIERS + 1 if ingredient_quality_to_keep is None else ingredient_quality_to_keep
+    assembled = min(ingredient_keep - 1, NUM_TIERS)
+
+    # Each tier's row of the assembler matrix depends only on its own split, so build them once per split
+    rows_by_split = []
+    for quality_modules in range(slots + 1):
+        params = get_assembler_parameters(
+            [(slots - quality_modules, quality_modules)] * NUM_TIERS,
+            ingredient_keep,
+            base_prod_bonus,
+            recipe_ratio,
+            prod_module_bonus,
+            qual_module_bonus,
+        )
+        rows_by_split.append(create_production_matrix(params))
+
+    recycler_parameters = get_recycler_parameters(
+        NUM_TIERS + 1 if product_quality_to_keep is None else product_quality_to_keep,
+        recipe_ratio,
+        qual_module_bonus if recycler_qual_module_bonus is None else recycler_qual_module_bonus,
+        recycle_ratio,
+    )
+    recycler_matrix = create_production_matrix(recycler_parameters)
+
+    if product_quality_to_keep is not None:
+        output_slice = slice(NUM_TIERS + product_quality_to_keep - 1, 2 * NUM_TIERS)
+    else:
+        output_slice = slice(ingredient_keep - 1, NUM_TIERS)
+
+    best_output = -math.inf
+    best_splits: tuple[int, ...] = ()
+    identity = np.eye(2 * NUM_TIERS)
+    for splits in itertools.product(range(slots + 1), repeat=assembled):
+        assembler_matrix = np.zeros((NUM_TIERS, NUM_TIERS))
+        for tier, quality_modules in enumerate(splits):
+            assembler_matrix[tier] = rows_by_split[quality_modules][tier]
+        transition = create_transition_matrix(assembler_matrix, recycler_matrix)
+
+        # Same steady state as `x_0 (I - T)^-1`, without forming the inverse
+        try:
+            flows = np.linalg.solve((identity - transition).T, input_vector)
+        except np.linalg.LinAlgError:
+            continue
+        # A loop that more than replaces itself has no steady state
+        if not np.all(np.isfinite(flows)) or flows.min() < -TOLERANCE:
+            continue
+
+        output = float(flows[output_slice].sum())
+        # Strict improvement only, so ties go to the earlier split, i.e. fewer quality modules
+        if not best_splits or output > best_output + TOLERANCE * max(1.0, abs(best_output)):
+            best_output, best_splits = output, splits
+
+    if not best_splits and assembled:
+        raise ValueError("No module split gives a loop with a steady state.")
+
+    modules = [(slots - q, q) for q in best_splits] + [None] * (NUM_TIERS - assembled)
+    return ModuleOptimum(modules, best_output)

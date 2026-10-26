@@ -61,9 +61,36 @@ uv run pytest
 ### 🖥️ Web frontend
 
 ```bash
-# run the backend. Open localhost at port 2048 to view the web frontend
-uv run uvicorn src.web.app:app --reload --port 2048
+# run the backend. Open localhost at port 1024 to view the web frontend
+uv run uvicorn src.web.app:app --reload --port 1024
 ```
+
+#### 🐳 Docker (e.g. a Raspberry Pi)
+
+The repo includes a `Dockerfile` and `docker-compose.yml` that run the web frontend on port 1024.
+
+```bash
+# build and start it in the background; it restarts after a reboot
+docker compose up -d --build
+
+# logs, and stopping it
+docker compose logs -f
+docker compose down
+```
+
+Then open `http://<host-address>:1024` from any device that can reach the host.
+
+To reach it from your phone, connect the phone to your VPN and use the Pi's address on the VPN or home network.
+The app has no login, so don't port-forward 1024 on your router.
+
+- **Needs a 64-bit OS** on the Pi (Raspberry Pi OS 64-bit): the numpy and pandas builds the app uses aren't
+  published for 32-bit Raspberry Pi OS. Check with `uname -m`, which should print `aarch64`.
+- **Updating:** `git pull && docker compose up -d --build`.
+- **Different port:** change the left side of `"1024:1024"` in `docker-compose.yml`, e.g. `"8080:1024"`.
+- **Fonts:** the page loads its font from Google Fonts. Without internet access on the phone it falls back to
+  a system font; everything else is served by the container.
+- The image installs the runtime dependencies from `pyproject.toml` only (no tests or dev tools), so each build
+  resolves the latest versions that satisfy it.
 
 Pick machines, module tiers and qualities in game terms. The app works out speeds, quality chances and
 productivity for you, then shows flows per tier split into ingredients and products, with bottlenecks

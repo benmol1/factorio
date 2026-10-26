@@ -166,6 +166,7 @@ function initForms() {
   $("#solve-recycler").addEventListener("click", solveRecycler);
   $("#form-assembler").addEventListener("submit", (e) => { e.preventDefault(); calculateAssembler(); });
   $("#solve").addEventListener("click", solveAssembler);
+  $("#optimise-modules").addEventListener("click", optimiseModules);
   $$("[data-preset]").forEach((b) =>
     b.addEventListener("click", () => {
       PRESETS[b.dataset.preset]();
@@ -550,6 +551,35 @@ async function solveAssembler() {
   setQuality($(".quality-picker[data-name=rec_quality]", f), data.recycler.quality);
   saveState(f);
   status.textContent = "Solved: the fewest machines per stage, at the lowest machine quality that still needs no more.";
+  calculateAssembler();
+}
+
+// Fills in the productivity/quality split per tier that maximises the kept output, then shows the result
+async function optimiseModules() {
+  const f = $("#form-assembler");
+  const status = $("#solve-status");
+  if (!checkSlots()) return;
+  status.classList.remove("error");
+  status.textContent = "Optimising…";
+  let data;
+  try {
+    const res = await fetch("/api/optimise-modules", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(assemblerRequest(f)) });
+    data = await res.json();
+    if (!res.ok) throw new Error(formatError(data));
+  } catch (err) {
+    status.classList.add("error");
+    status.textContent = err.message;
+    return;
+  }
+  // Kept tiers aren't assembled, so the server has no modules for them and they stay as they are
+  data.tiers.forEach((t, i) => {
+    if (!t) return;
+    f[`prod_${i}`].value = t.prod_modules;
+    f[`qual_${i}`].value = t.quality_modules;
+  });
+  saveState(f);
+  const splits = data.tiers.map((t, i) => (t ? `${TIERS[i]} ${t.prod_modules}:${t.quality_modules}` : null)).filter(Boolean);
+  status.textContent = `Optimised (prod:quality): ${splits.join(", ")}. Press Solve to resize the machines for the new modules.`;
   calculateAssembler();
 }
 
