@@ -3,5 +3,5 @@ services:
     build: .
     image: factorio-quality-loop
     ports:
-      - "2048:2048"
+      - "1024:1024"
     restart: unless-stopped

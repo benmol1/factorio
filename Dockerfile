@@ -22,6 +22,6 @@ USER app
 EXPOSE 2048
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:2048/api/game-data')"
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:1024/api/game-data')"
 
-CMD ["uvicorn", "src.web.app:app", "--host", "0.0.0.0", "--port", "2048"]
+CMD ["uvicorn", "src.web.app:app", "--host", "0.0.0.0", "--port", "1024"]
