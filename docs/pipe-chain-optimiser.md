@@ -1,10 +1,15 @@
 # How the pipe chain and its optimiser work
 
-This explains `src/quality/pipe_chain.py`: how it turns free lava into legendary iron plates, and how
-`optimise()` finds the best module setup for a fixed number of machines. All numbers below come from the code's
+This explains `src/quality/pipe_chain.py`: how it turns free lava into legendary iron plates, and which module setup is best. All numbers below come from the code's
 recipe data (see "Things to double-check" at the end) and from the actual solver output.
 
 Run it with `uv run -m src.quality.pipe_chain`.
+
+> **Productivity modules aren't allowed here.** Pipes and pipe to ground are logistics items, so no recipe that makes
+> them (casting pipe, casting pipe to ground, assembling pipe) accepts productivity modules. `optimise()` therefore only
+> tries quality modules in those three machines (section 8). Sections 4 to 7 use a productivity setup as a worked
+> example of the arithmetic, so their numbers are illustrative, not buildable. Only the lava foundry can still take
+> productivity modules.
 
 ## 1. The idea in one picture
 
@@ -167,51 +172,29 @@ Machine counts are left fractional (1.77 lava foundries), so a real build would 
 worse. Lava foundries, pipe foundries, pipe-to-ground foundries and pipe assemblers are counted in one shared pool
 even though they are different machines.
 
-## 8. The search
+## 8. The chosen setup
 
-`optimise()` tries every combination of:
+There is nothing to search. Pipes and pipe to ground can't take productivity modules, and an exhaustive search over
+every module split (it used to live in `optimise()`) always landed on the same answer: **4 quality modules in the pipe
+foundry, pipe-to-ground foundry, pipe assembler and recycler**, and `min_plate_tier = 1`. The lava foundry's modules
+only change how much lava is used, not the flows. `ChainConfig` still takes other modules (the web app uses them), but
+`python -m src.quality.pipe_chain` just reports this setup with legendary machines and recyclers.
 
-- Modules for the **pipe foundry**, **pipe-to-ground foundry** and **pipe assembler**: any (productivity, quality)
-  pair with at most 4 modules in total: 15 options each.
-- **Lava foundry** productivity modules: 0 to 4.
-- **Recycler** quality modules: 0 to 4.
-- `min_plate_tier`: 0 to 3.
+Machine quality only changes speed (legendary is 2.5x), so flows are identical and every machine count divides by 2.5.
 
-That's 15 x 15 x 15 x 5 x 5 x 4 = 337,500 setups. Each is solved and scaled to the budget as in section 7, and the one with the most
-legendary plates per second wins. A setup is skipped if the loop has no finite steady state (the matrix can't be
-inverted, or any flow comes out negative).
+### Machines per 1 legendary plate/s (all legendary machines and recyclers)
 
-### What won, and why
+Needs 666 lava/s and makes 13.3 stone/s. Multiply by your target rate and round each stage up.
 
-| Machine | Modules |
-|---|---|
-| Lava foundry | none |
-| Pipe foundry | 4 quality |
-| Pipe-to-ground foundry | 4 productivity |
-| Pipe assembler | 4 productivity |
-| Recycler | 4 quality |
-| Minimum plate tier | 1 |
+| Stage | Machines | Flow |
+|---|---|---|
+| Lava foundries | 2.13 | 666 lava/s in |
+| Pipe foundries | 2.51 | 40% of the molten iron, makes 59.7 pipes/s |
+| Pipe-to-ground foundries | 0.75 | 60% of the molten iron, makes 17.9 pipe to ground/s |
+| Recyclers | 0.28 | 11.2 plates/s out |
+| Pipe assemblers | 1.43 | 8.2 plates/s (tiers 1 to 3) in |
 
-- **Productivity on the foundry and assembler** keeps the volume of material in the loop high. The recycler's quality
-  modules and the (normal-quality) volume do the upgrading. Compare with the earlier hand-picked setups at a fixed 100
-  lava/s: quality modules in the pipe-to-ground foundry gave 0.25 legendary plates/s, and productivity modules there gave
-  1.10 /s.
-- **Lava foundries get no modules** because lava is free: a productivity module there saves lava but costs speed, and
-  speed is what the machine budget is spent on.
-- **The pipe foundry barely matters.** It's only the seed, so its modules don't change the answer much.
-- Because crafting machines run out long before recyclers do, the recycler count rarely matters. The winning setup needs
-  about 0.065 recyclers for each crafting machine.
-- The pipe assemblers are the biggest consumer (6 of the 10 machines), so they are the main cost of this design.
-
-### Results
-
-| Crafting machines | Recyclers | Legendary plates/s | Per minute | Lava/s |
-|---|---|---|---|---|
-| 10 | 2 | 4.14 | 249 | 221 |
-| 20 | 4 | 8.29 | 497 | 442 |
-| 40 | 4 | 16.57 | 994 | 884 |
-
-Output is linear in the budget: about 0.41 legendary plates/s per crafting machine.
+3.0 normal plates/s leave as surplus.
 
 ## Things to double-check
 
