@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from src.quality.assembler_recycler_loop import assembler_recycler_loop, get_recycler_parameters
-from src.quality.pipe_chain import ChainConfig, solve_chain
+from src.quality.pipe_chain import ChainConfig, pipe_foundry_output, solve_chain, solve_input
 from src.web.recipes import ITEMS, RECIPES, RECYCLING, recycling
 
 
@@ -68,10 +68,11 @@ def test_pipe_chain_balances():
     """Every pipe to ground made is recycled, and molten iron use matches what the lava foundries make."""
     cfg = ChainConfig(lava_per_second=100)
     res = solve_chain(cfg)
-    ptg_made = res["pipes"].sum() / 10 * 2 * 1.5  # 10 pipes -> 2 pipe to ground, +50% foundry productivity
+    # Legendary pipes aren't cast: 10 other pipes -> 2 pipe to ground, +50% foundry productivity
+    ptg_made = res["pipes"][:-1].sum() / 10 * 2 * 1.5
     assert res["pipe_to_ground"].sum() == pytest.approx(ptg_made)
-    # Plates returned are 0.625 per pipe to ground recycled
-    assert res["plates"].sum() == pytest.approx(0.625 * res["pipe_to_ground"].sum())
+    # Plates returned are 0.625 per pipe to ground recycled, and 0.25 per legendary pipe recycled
+    assert res["plates"].sum() == pytest.approx(0.625 * res["pipe_to_ground"].sum() + 0.25 * res["pipes"][-1])
     assert res["legendary_plates"] > 0
     # Scales linearly with lava
     assert solve_chain(ChainConfig(lava_per_second=200))["legendary_plates"] == pytest.approx(
@@ -94,3 +95,14 @@ def test_pipe_chain_legendary_machines_shrink_loads_not_flows():
     assert legendary["legendary_plates"] == pytest.approx(normal["legendary_plates"])
     for name, load in normal["loads"].items():
         assert legendary["loads"][name] == pytest.approx(load / 2.5)
+
+
+def test_pipe_chain_solve_input_matches_solve_chain():
+    """Feeding solve_chain's own fresh pipes into solve_input reproduces its flows."""
+    cfg = ChainConfig(lava_per_second=100)
+    res = solve_chain(cfg)
+    fresh = pipe_foundry_output(1, cfg)  # Tier split per molten iron/s
+    scale = res["pipes"].sum() / solve_input(fresh, cfg)["pipes"].sum()
+    out = solve_input(fresh * scale, cfg)
+    assert out["legendary_plates"] == pytest.approx(res["legendary_plates"])
+    assert out["pipe_to_ground"] == pytest.approx(res["pipe_to_ground"])
