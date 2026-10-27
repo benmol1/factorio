@@ -16,7 +16,6 @@ Run as `python -m src.quality.pipe_chain` from the repo root.
 """
 
 from dataclasses import dataclass, replace
-from itertools import product
 
 import numpy as np
 
@@ -47,6 +46,8 @@ class ChainConfig:
     # Plates below this tier are surplus: they leave the chain rather than being assembled into pipes
     min_plate_tier: int = 1
     research_prod_bonus: float = 0.0
+    machine_quality: int = 0  # Quality tier of the foundries and assemblers (speed only; slots don't change)
+    recycler_quality: int = 0
 
 
 def _prod_ratio(machine: str, prod_modules: int, research: float, recipe_ratio: float) -> float:
@@ -54,10 +55,10 @@ def _prod_ratio(machine: str, prod_modules: int, research: float, recipe_ratio: 
     return min(1 + MACHINES[machine].prod_bonus + research + prod_modules * BEST_PROD_MODULE, 4) * recipe_ratio
 
 
-def _machine_speed(machine: str, modules: tuple[int, int]) -> float:
-    """Normal quality machine speed after the penalty of (prod, quality) modules; productivity modules are level 3."""
+def _machine_speed(machine: str, modules: tuple[int, int], quality: int = 0) -> float:
+    """Machine speed after the penalty of (prod, quality) modules; productivity modules are level 3."""
     penalty = modules[0] * PROD_MODULE_SPEED_PENALTY[3] + modules[1] * QUALITY_MODULE_SPEED_PENALTY
-    return machine_speed(MACHINES[machine].speed, 0, penalty)
+    return machine_speed(MACHINES[machine].speed, quality, penalty)
 
 
 def solve_chain(cfg: ChainConfig | None = None) -> dict:
@@ -128,18 +129,21 @@ def solve_chain(cfg: ChainConfig | None = None) -> dict:
     plates_in = flows[PLATE : PLATE + NUM_TIERS]
     ptg_in = flows[PTG : PTG + NUM_TIERS]
     assembled = plates_in[cfg.min_plate_tier : LEGENDARY].sum()
-    ptg_speed = _machine_speed("foundry", cfg.ptg_foundry)
+    mq = cfg.machine_quality
+    ptg_speed = _machine_speed("foundry", cfg.ptg_foundry, mq)
     loads = {
-        "lava foundries": lava_crafts * lava.time / _machine_speed("foundry", (cfg.lava_foundry_prod_modules, 0)),
+        "lava foundries": lava_crafts * lava.time / _machine_speed("foundry", (cfg.lava_foundry_prod_modules, 0), mq),
         "pipe foundries": scale
         / casting_pipe.ingredients["molten-iron"]
         * casting_pipe.time
-        / _machine_speed("foundry", cfg.pipe_foundry),
+        / _machine_speed("foundry", cfg.pipe_foundry, mq),
         "pipe-to-ground foundries": pipes_in.sum() / pipes_per_craft * casting_ptg.time / ptg_speed,
-        "recyclers": ptg_in.sum() * ptg_recycling.time_per_item / recycler_speed(0, cfg.recycler_quality_modules),
+        "recyclers": ptg_in.sum()
+        * ptg_recycling.time_per_item
+        / recycler_speed(cfg.recycler_quality, cfg.recycler_quality_modules),
         "pipe assemblers": assembled
         * assembling_pipe.time
-        / _machine_speed("assembling-machine-3", cfg.pipe_assembler),
+        / _machine_speed("assembling-machine-3", cfg.pipe_assembler, mq),
     }
     return {
         "pipes": pipes_in,
@@ -167,80 +171,12 @@ def report(cfg: ChainConfig) -> None:
         f"  LEGENDARY PLATES: {res['legendary_plates']:.3f}/s = {res['legendary_plates'] * 60:.1f}/min; "
         f"surplus lower-tier plates {res['surplus_plates']:.3f}/s; stone {res['stone']:.2f}/s"
     )
-    print("  machine-equivalents at 100% load:", {k: round(v, 1) for k, v in res["loads"].items()})
-
-
-MODULE_SPLITS = [(p, q) for p in range(5) for q in range(5 - p)]  # (prod, quality) with at most 4 modules
-
-
-@dataclass(frozen=True)
-class Optimum:
-    """The best configuration found for a machine budget, scaled so the budget is exactly used."""
-
-    cfg: ChainConfig  # lava_per_second is the rate that exactly uses the budget
-    legendary_per_second: float
-    loads: dict[str, float]  # Machines of each kind used at that lava rate
-
-
-def optimise(crafting_machines: float, recyclers: float) -> Optimum:
-    """Find the module setup and lava rate that maximise legendary plates/s within a machine budget.
-
-    Lava is free, so the only limits are the total crafting machines (lava + pipe + pipe to ground foundries and plate
-    assemblers, pooled) and the recyclers. Flows and loads are linear in the lava rate, so each setup is solved once
-    and scaled until the tighter of the two budgets binds. Machine counts are fractional (no rounding up).
-    """
-    best: Optimum | None = None
-    for pipe_foundry in MODULE_SPLITS:
-        for ptg_foundry in MODULE_SPLITS:
-            for pipe_assembler in MODULE_SPLITS:
-                for lava_prod, recycler_qual, min_tier in product(range(5), range(5), range(LEGENDARY)):
-                    cfg = ChainConfig(
-                        lava_foundry_prod_modules=lava_prod,
-                        pipe_foundry=pipe_foundry,
-                        ptg_foundry=ptg_foundry,
-                        pipe_assembler=pipe_assembler,
-                        recycler_quality_modules=recycler_qual,
-                        min_plate_tier=min_tier,
-                    )
-                    try:
-                        res = solve_chain(cfg)
-                    except np.linalg.LinAlgError:  # Loop gain of exactly 1: no finite steady state
-                        continue
-                    if min(res["pipes"].min(), res["plates"].min()) < 0:  # Loop gain above 1: no steady state
-                        continue
-                    loads = res["loads"]
-                    crafting = sum(v for k, v in loads.items() if k != "recyclers")
-                    factor = min(crafting_machines / crafting, recyclers / loads["recyclers"])
-                    legendary = res["legendary_plates"] * factor
-                    if best is None or legendary > best.legendary_per_second:
-                        scaled = replace(cfg, lava_per_second=cfg.lava_per_second * factor)
-                        best = Optimum(scaled, legendary, {k: v * factor for k, v in loads.items()})
-    assert best is not None
-    return best
-
-
-def report_optimum(crafting_machines: float, recyclers: float) -> None:
-    """Print the best setup for a budget."""
-    opt = optimise(crafting_machines, recyclers)
-    c = opt.cfg
-    print(f"budget: {crafting_machines:g} crafting machines, {recyclers:g} recyclers")
-    print(
-        f"  LEGENDARY PLATES: {opt.legendary_per_second:.4f}/s = {opt.legendary_per_second * 60:.1f}/min "
-        f"(lava {c.lava_per_second:.1f}/s)"
-    )
-    print(
-        f"  (P,Q): lava foundry P={c.lava_foundry_prod_modules} pipe foundry={c.pipe_foundry} "
-        f"ptg foundry={c.ptg_foundry} pipe assembler={c.pipe_assembler} recycler Q={c.recycler_quality_modules} "
-        f"min plate tier={c.min_plate_tier}"
-    )
-    print("  machines used:", {k: round(v, 2) for k, v in opt.loads.items()})
+    print("  machine-equivalents at 100% load:", {k: round(v, 2) for k, v in res["loads"].items()})
 
 
 if __name__ == "__main__":
     np.set_printoptions(precision=3, suppress=True, linewidth=200)
-    report(ChainConfig())
-    report(ChainConfig(min_plate_tier=0))
-    report(ChainConfig(ptg_foundry=(4, 0)))
-    report(ChainConfig(ptg_foundry=(2, 2), pipe_foundry=(0, 4)))
-    for budget in [(10, 2), (20, 4), (40, 4)]:
-        report_optimum(*budget)
+    # 4 quality modules everywhere is optimal, since pipes and pipe to ground can't take productivity modules
+    cfg = ChainConfig(lava_foundry_prod_modules=0, machine_quality=LEGENDARY, recycler_quality=LEGENDARY)
+    target = 2.0  # Legendary plates/s; flows are linear in the lava rate, so scale from the 100 lava/s solve
+    report(replace(cfg, lava_per_second=cfg.lava_per_second * target / solve_chain(cfg)["legendary_plates"]))

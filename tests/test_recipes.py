@@ -85,3 +85,12 @@ def test_pipe_chain_assembling_low_plates_gives_more_legendary():
         solve_chain(ChainConfig(min_plate_tier=0))["legendary_plates"]
         > solve_chain(ChainConfig(min_plate_tier=1))["legendary_plates"]
     )
+
+
+def test_pipe_chain_legendary_machines_shrink_loads_not_flows():
+    """Machine quality is speed only: flows are unchanged and each machine count drops by the 2.5x speed bonus."""
+    normal = solve_chain(ChainConfig())
+    legendary = solve_chain(ChainConfig(machine_quality=4, recycler_quality=4))
+    assert legendary["legendary_plates"] == pytest.approx(normal["legendary_plates"])
+    for name, load in normal["loads"].items():
+        assert legendary["loads"][name] == pytest.approx(load / 2.5)
