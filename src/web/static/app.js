@@ -236,13 +236,18 @@ function updateRecipe() {
   updateIngredient();
 }
 
+// Products made by one craft of the selected recipe; 1 for a custom ratio, where the recipe is unknown
+function productsPerCraft(form) {
+  const r = GAME.recipes[form.recipe.value];
+  return r ? Object.values(r.products).reduce((a, b) => a + b, 0) : 1;
+}
+
 function updateIngredient() {
   const form = $("#form-assembler");
   const r = GAME.recipes[form.recipe.value];
   const item = form.ingredient.value;
   $(".ingredient-icon", form).src = ICON(GAME.items[item].icon);
-  const products = Object.values(r.products).reduce((a, b) => a + b, 0);
-  form.recipe_ratio.value = +(products / r.ingredients[item]).toPrecision(6);
+  form.recipe_ratio.value = +(productsPerCraft(form) / r.ingredients[item]).toPrecision(6);
   // Other ingredients are assumed to be supplied at matching quality, outside the loop
   const others = Object.entries(r.ingredients).filter(([k]) => k !== item);
   $("#ingredient-hint").textContent = others.length
@@ -520,6 +525,7 @@ function assemblerRequest(f) {
     recycler: recyclerSetup(f),
     recipe_time: Number(f.recipe_time.value),
     recipe_ratio: Number(f.recipe_ratio.value),
+    products_per_craft: productsPerCraft(f),
     recycle_time: optionalNumber(f.recycle_time),
     ingredient_quality_to_keep: getQuality($(".quality-picker[data-name=ing_keep]", f)),
     product_quality_to_keep: getQuality($(".quality-picker[data-name=prod_keep]", f)),

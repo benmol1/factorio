@@ -64,19 +64,23 @@ def create_crafting_time_vector(
     return np.array(res)
 
 
-def create_max_flow_vector(crafting_time_vector: np.ndarray, recipe_ratio: float) -> np.ndarray:
+def create_max_flow_vector(
+    crafting_time_vector: np.ndarray, recipe_ratio: float, products_per_craft: float = 1
+) -> np.ndarray:
     """Calculate the maximum throughput for each tier based on crafting times.
 
     Args:
         crafting_time_vector: Vector of crafting times per tier.
         recipe_ratio: Ratio of products to ingredients in the recipe.
+        products_per_craft: Products made by one craft. One craft uses `products_per_craft / recipe_ratio`
+            ingredients, so an assembler's ingredient capacity scales with it.
 
     Returns:
         Vector of maximum flow rates (items/second) per tier.
     """
     mf_vector = np.zeros_like(crafting_time_vector)
     mf_vector = 1 / crafting_time_vector
-    mf_vector[:NUM_TIERS] = mf_vector[:NUM_TIERS] / recipe_ratio
+    mf_vector[:NUM_TIERS] = mf_vector[:NUM_TIERS] * products_per_craft / recipe_ratio
 
     return mf_vector
 
@@ -165,6 +169,7 @@ def assembler_recycler_loop(
     recycle_time: float | None = None,
     recycler_qual_module_bonus: float | None = None,
     recycle_ratio: float | None = None,
+    products_per_craft: float = 1,
     verbose: bool = False,
 ) -> np.array:
     """Simulate an assembler-recycler loop to calculate quality tier flows.
@@ -195,6 +200,7 @@ def assembler_recycler_loop(
             `qual_module_bonus`.
         recycle_ratio: Loop ingredients returned per product recycled. Defaults to `0.25 / recipe_ratio`; see
             `get_recycler_parameters`.
+        products_per_craft: Products made by one craft of the recipe, which sets the assemblers' ingredient capacity.
         verbose: If True, print debug information.
 
     Returns:
@@ -230,7 +236,7 @@ def assembler_recycler_loop(
         speed_assemblers, num_assemblers, speed_recycler, num_recyclers, recipe_time, recycle_time
     )
 
-    max_flow_vector = create_max_flow_vector(crafting_time_vector, recipe_ratio)
+    max_flow_vector = create_max_flow_vector(crafting_time_vector, recipe_ratio, products_per_craft)
 
     if verbose:
         print("\n## Transition matrix:\n", transition_matrix)

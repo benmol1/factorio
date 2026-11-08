@@ -265,6 +265,17 @@ class TestRecycleTime:
         # Default recycle time is 16 / 16 = 1s, so halving it doubles the recycler max flow
         np.testing.assert_allclose(max_flow_fast[NUM_TIERS:], 2 * max_flow_default[NUM_TIERS:])
 
+    def test_assembler_max_flow_scales_with_products_per_craft(self):
+        """A craft making 2 products takes in twice the ingredients, so an assembler carries twice the flow."""
+        kwargs = dict(input_vector=10.0, assembler_modules_config=(0, 4), recipe_ratio=0.05, recipe_time=2)
+        _, _, single = assembler_recycler_loop(**kwargs)
+        _, _, double = assembler_recycler_loop(**kwargs, products_per_craft=2)
+        np.testing.assert_allclose(double[:NUM_TIERS], 2 * single[:NUM_TIERS])
+        np.testing.assert_allclose(double[NUM_TIERS:], single[NUM_TIERS:])
+        # A speed 8 foundry doing 40 tungsten -> 2 belts every 2s takes in 4 crafts/s * 40 = 160/s
+        _, _, flow = assembler_recycler_loop(**kwargs, speed_assemblers=[8] * NUM_TIERS, products_per_craft=2)
+        np.testing.assert_allclose(flow[0], 160)
+
 
 class TestGetProductionRate:
     """Tests for get_production_rate."""

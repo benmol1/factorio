@@ -67,6 +67,7 @@ def solve_machine_counts(
     recycle_time: float | None = None,
     recycler_qual_module_bonus: float | None = None,
     recycle_ratio: float | None = None,
+    products_per_craft: float = 1,
 ) -> SolverResult:
     """Find the fewest assemblers (per ingredient tier) and recyclers that leave nothing bottlenecked.
 
@@ -93,6 +94,7 @@ def solve_machine_counts(
         recycler_qual_module_bonus: Quality chance bonus per quality module in the recyclers. Defaults to
             `qual_module_bonus`.
         recycle_ratio: Loop ingredients returned per product recycled. Defaults to `0.25 / recipe_ratio`.
+        products_per_craft: Products made by one craft of the recipe, which sets the assemblers' ingredient capacity.
 
     Returns:
         A SolverResult. Tiers with no flow or whose quality is kept need zero assemblers.
@@ -118,6 +120,7 @@ def solve_machine_counts(
         recycle_time=recycle_time,
         recycler_qual_module_bonus=recycler_qual_module_bonus,
         recycle_ratio=recycle_ratio,
+        products_per_craft=products_per_craft,
     )
 
     # Kept ingredient tiers are taken out of the loop rather than assembled
@@ -216,6 +219,7 @@ def optimise_modules(
     speed_recycler: float = 0.5,
     recipe_time: float = 1,
     recycle_time: float | None = None,
+    products_per_craft: float = 1,
 ) -> ModuleOptimum:
     """Find the productivity/quality module split in each assembler tier that maximises the kept output.
 
@@ -254,6 +258,7 @@ def optimise_modules(
         recipe_time: Base recipe crafting time in seconds. Only used per machine.
         recycle_time: Base time in seconds of the product's recycling recipe. Defaults to `recipe_time / 16`. Only
             used per machine.
+        products_per_craft: Products made by one craft of the recipe. Only used per machine.
 
     Returns:
         A ModuleOptimum.
@@ -324,7 +329,7 @@ def optimise_modules(
         score = output
         if per_machine:
             machines = sum(
-                flows[tier] * recipe_time * recipe_ratio / assembler_speeds_by_split[q][tier]
+                flows[tier] * recipe_time * recipe_ratio / products_per_craft / assembler_speeds_by_split[q][tier]
                 for tier, q in enumerate(splits)
             )
             machines += float(flows[NUM_TIERS : NUM_TIERS + recycled].sum()) / recycler_capacity

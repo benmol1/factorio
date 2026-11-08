@@ -84,6 +84,8 @@ class AssemblerLoopRequest(BaseModel):
     recycler: RecyclerSetup
     recipe_time: Annotated[float, Field(gt=0)] = 1.0
     recipe_ratio: Annotated[float, Field(gt=0)] = 1.0
+    # Products made per craft, which sets how many ingredients one machine takes in per second
+    products_per_craft: Annotated[float, Field(gt=0)] = 1.0
     recycle_time: Annotated[float, Field(gt=0)] | None = None
     # None means never extract (assemble/recycle every tier)
     ingredient_quality_to_keep: Tier | None = NUM_TIERS - 1
@@ -216,6 +218,7 @@ def _loop_kwargs(req: AssemblerLoopRequest) -> dict:
         # The library's base bonus is the production ratio before modules, so it includes the base 1×
         "base_prod_bonus": 1 + machine.prod_bonus + req.research_prod_bonus,
         "recipe_ratio": req.recipe_ratio,
+        "products_per_craft": req.products_per_craft,
         "recipe_time": req.recipe_time,
         "prod_module_bonus": PROD_MODULE_BONUS[req.prod_module.level][req.prod_module.quality],
         "qual_module_bonus": QUALITY_MODULE_BONUS[req.quality_module.level][req.quality_module.quality],
@@ -280,6 +283,7 @@ def _optimise_modules(req: AssemblerLoopRequest, per_machine: bool) -> dict:
             ingredient_quality_to_keep=loop["ingredient_quality_to_keep"],
             base_prod_bonus=loop["base_prod_bonus"],
             recipe_ratio=loop["recipe_ratio"],
+            products_per_craft=loop["products_per_craft"],
             prod_module_bonus=loop["prod_module_bonus"],
             qual_module_bonus=loop["qual_module_bonus"],
             recycler_qual_module_bonus=loop["recycler_qual_module_bonus"],
