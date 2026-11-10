@@ -149,7 +149,7 @@ def test_solve_ignores_the_machines_in_the_request():
 def test_recipes_grouped():
     """Every recipe belongs to one of the in-game tabs the picker lists."""
     data = client.get("/api/game-data").json()
-    assert data["groups"] == ["Production", "Logistics", "Intermediate", "Combat", "Fluids"]
+    assert data["groups"] == ["Production", "Logistics", "Intermediate", "Science", "Combat", "Fluids"]
     assert all(r["group"] in data["groups"] for r in data["recipes"].values())
 
 
