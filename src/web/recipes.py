@@ -551,7 +551,7 @@ RECIPES = {
         time=20,
         ingredients={"electronic-circuit": 5, "iron-plate": 20, "landfill": 1, "nutrients": 5, "pentapod-egg": 1},
         products={"biochamber": 1},
-        machines=ASSEMBLERS,
+        machines=("biochamber", *ASSEMBLERS),
         group="Production",
     ),
 }
