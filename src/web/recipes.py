@@ -110,6 +110,9 @@ ITEMS = {
     "stack-inserter": Item("Stack inserter", "stack_inserter"),
     "yumako": Item("Yumako", "yumako"),
     "yumako-seed": Item("Yumako seed", "yumako_seed"),
+    "piercing-rounds-magazine": Item("Piercing rounds magazine", "piercing_rounds_magazine"),
+    "uranium-238": Item("Uranium-238", "uranium_238"),
+    "uranium-rounds-magazine": Item("Uranium rounds magazine", "uranium_rounds_magazine"),
 }
 
 ASSEMBLERS = ("assembling-machine-3",)
@@ -269,6 +272,14 @@ RECIPES = {
         time=8,
         ingredients={"coal": 10, "iron-plate": 5},
         products={"grenade": 1},
+        machines=ASSEMBLERS,
+        group="Combat",
+    ),
+    "uranium-rounds-magazine": Recipe(
+        "Uranium rounds magazine",
+        time=10,
+        ingredients={"piercing-rounds-magazine": 1, "uranium-238": 1},
+        products={"uranium-rounds-magazine": 1},
         machines=ASSEMBLERS,
         group="Combat",
     ),
